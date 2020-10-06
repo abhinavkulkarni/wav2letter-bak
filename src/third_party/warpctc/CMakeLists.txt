@@ -11,7 +11,7 @@ IF (NOT APPLE)
 ENDIF()
 
 IF (APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O2")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O2")
     add_definitions(-DAPPLE)
 ENDIF()
 
@@ -46,7 +46,7 @@ IF ((CUDA_VERSION VERSION_GREATER "9.0") OR (CUDA_VERSION VERSION_EQUAL "9.0"))
 ENDIF()
 
 if (NOT APPLE)
-    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --std=c++11")
+    set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --std=c++14")
     set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -Xcompiler -fopenmp")
 ENDIF()
 
@@ -87,14 +87,14 @@ ELSE()
     MESSAGE(STATUS "warpctc: Building shared library with no GPU support")
 
     if (NOT APPLE)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O2")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O2")
     ENDIF()
 
     ADD_LIBRARY(warpctc SHARED src/ctc_entrypoint.cpp)
 
     add_executable(test_cpu tests/test_cpu.cpp )
     TARGET_LINK_LIBRARIES(test_cpu warpctc)
-    SET_TARGET_PROPERTIES(test_cpu PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS} --std=c++11")
+    SET_TARGET_PROPERTIES(test_cpu PROPERTIES COMPILE_FLAGS "${CMAKE_CXX_FLAGS} --std=c++14")
 
     INSTALL(TARGETS warpctc
             RUNTIME DESTINATION "bin"

@@ -28,7 +28,7 @@ set_target_properties(
   wav2letter-libraries
   PROPERTIES
   LINKER_LANGUAGE CXX
-  CXX_STANDARD 11
+  CXX_STANDARD 14
   )
 
 target_link_libraries(

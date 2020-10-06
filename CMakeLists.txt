@@ -4,7 +4,7 @@ project(wav2letter++)
 
 # ----------------------------- Setup -----------------------------
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ----------------------------- Configuration -----------------------------
@@ -176,7 +176,7 @@ set_target_properties(
   wav2letter++
   PROPERTIES
   LINKER_LANGUAGE CXX
-  CXX_STANDARD 11
+  CXX_STANDARD 14
   )
 
 target_link_libraries(

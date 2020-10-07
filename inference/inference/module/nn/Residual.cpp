@@ -7,6 +7,9 @@
  */
 
 #include "inference/module/nn/Residual.h"
+#include "LayerNorm.h"
+#include "Sequential.h"
+#include "Util.h"
 
 #include <cassert>
 #include <sstream>
@@ -115,6 +118,42 @@ void Residual::sum(
          << " is not implemented at Relu::run()";
       throw std::runtime_error(ss.str());
   }
+}
+
+std::pair<InferenceModuleInfo, torch::nn::AnyModule> Residual::getTorchModule()
+    const {
+  auto pair = module_->getTorchModule();
+  auto info = pair.first;
+  auto module = pair.second;
+  return std::make_pair(
+      info, torch::nn::AnyModule(ResidualTorch(std::move(module))));
+}
+
+ResidualTorchImpl::ResidualTorchImpl(torch::nn::AnyModule module)
+    : module(std::move(module)) {}
+
+void ResidualTorchImpl::pretty_print(std::ostream& stream) const {
+  stream << "Residual(";
+  if (auto* ptr = module.ptr()->as<torch::nn::Conv1d>())
+    stream << *ptr << ")";
+  else if (auto* ptr = module.ptr()->as<torch::nn::Linear>())
+    stream << *ptr << ")";
+  else if (auto* ptr = module.ptr()->as<GroupNorm>())
+    stream << *ptr << ")";
+  else if (auto* ptr = module.ptr()->as<StackSequential>())
+    stream << *ptr << ")";
+  else if (auto* ptr = module.ptr()->as<ResidualTorch>())
+    stream << *ptr << ")";
+  else
+    stream << module.ptr() << ")";
+}
+
+torch::Tensor ResidualTorchImpl::forward(torch::Tensor x) {
+  return x + module.forward(x);
+}
+
+const torch::nn::AnyModule& ResidualTorchImpl::getModule() const {
+  return module;
 }
 
 } // namespace streaming

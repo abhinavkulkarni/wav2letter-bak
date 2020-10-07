@@ -13,6 +13,7 @@
 #include <cereal/cereal.hpp>
 #include <cereal/types/polymorphic.hpp>
 #include <fbgemm/FbgemmFP16.h>
+#include <torch/csrc/api/include/torch/nn.h>
 #include <memory>
 #include <string>
 
@@ -52,6 +53,9 @@ class Conv1dFbGemm : public Conv1d {
 
   std::string debugString() const override;
 
+  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const override;
+
  protected:
   void init(std::shared_ptr<ModuleParameter> weights);
 
@@ -68,6 +72,27 @@ class Conv1dFbGemm : public Conv1d {
     ar(cereal::base_class<Conv1d>(this), bias_, packedWeights_);
   }
 };
+
+struct Conv1dUnequalPaddingImpl : torch::nn::Conv1dImpl {
+ private:
+  int leftPadding, rightPadding;
+
+ public:
+  Conv1dUnequalPaddingImpl(
+      int inChannels,
+      int outChannels,
+      int kernelSize,
+      int stride,
+      int leftPadding,
+      int rightPadding,
+      int groups);
+
+  torch::Tensor forward(torch::Tensor x);
+
+  void pretty_print(std::ostream& stream) const override;
+};
+
+TORCH_MODULE(Conv1dUnequalPadding);
 
 } // namespace streaming
 } // namespace w2l

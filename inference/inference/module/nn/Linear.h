@@ -42,7 +42,11 @@ class Linear : public InferenceModule {
       std::shared_ptr<ModuleProcessingState> input) override;
 
   std::string debugString() const override;
+
   virtual std::string debugStringWithContent() const;
+
+  virtual std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const = 0;
 
  protected:
   uint32_t nInput_;

@@ -62,6 +62,9 @@ class Conv1d : public InferenceModule {
 
   std::string debugString() const override;
 
+  virtual std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const = 0;
+
  protected:
   uint32_t inChannels_;
   uint32_t outChannels_;

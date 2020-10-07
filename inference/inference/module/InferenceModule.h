@@ -12,6 +12,7 @@
 #include <cereal/archives/portable_binary.hpp>
 #include <cereal/archives/xml.hpp>
 #include <cereal/types/polymorphic.hpp>
+#include <torch/csrc/api/include/torch/nn/modules/container/any.h>
 #include <memory>
 #include <vector>
 
@@ -20,6 +21,29 @@
 
 namespace w2l {
 namespace streaming {
+
+struct InferenceModuleInfo {
+ public:
+  enum shape { SHAPE_2D, SHAPE_3D, SHAPE_PASSTHROUGH };
+
+  shape inShape, outShape;
+  int inChannels, outChannels;
+
+  InferenceModuleInfo() {
+    inShape = outShape = shape::SHAPE_PASSTHROUGH;
+    inChannels = outChannels = -1;
+  }
+
+  InferenceModuleInfo(
+      shape inShape,
+      int inChannels,
+      shape outShape,
+      int outChannels)
+      : inShape(inShape),
+        inChannels(inChannels),
+        outShape(outShape),
+        outChannels(outChannels) {}
+};
 
 // Base class for all modules of the inference processing graph, including:
 // - Neural network layers.
@@ -54,6 +78,9 @@ class InferenceModule {
   virtual void setMemoryManager(std::shared_ptr<MemoryManager> memoryManager);
 
   virtual std::string debugString() const = 0;
+
+  virtual std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const = 0;
 
  protected:
   std::shared_ptr<MemoryManager> memoryManager_;

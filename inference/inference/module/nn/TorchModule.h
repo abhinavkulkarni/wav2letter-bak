@@ -1,10 +1,6 @@
-/**
- * Copyright (c) Facebook, Inc. and its affiliates.
- * All rights reserved.
- *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree.
- */
+//
+// Created by abhinav on 10/5/20.
+//
 
 #pragma once
 
@@ -16,15 +12,15 @@
 #include "inference/common/IOBuffer.h"
 #include "inference/module/InferenceModule.h"
 #include "inference/module/ModuleParameter.h"
+#include "inference/module/nn/Util.h"
 
 namespace w2l {
 namespace streaming {
-
-class LocalNorm : public InferenceModule {
+class TorchModule : public InferenceModule {
  public:
-  LocalNorm(int featureSize, int leftContextSize, int rightContextSize);
+  TorchModule(StackSequential module, InferenceModuleInfo info);
 
-  virtual ~LocalNorm() override = default;
+  virtual ~TorchModule() override = default;
 
   std::shared_ptr<ModuleProcessingState> start(
       std::shared_ptr<ModuleProcessingState> input) override;
@@ -37,26 +33,19 @@ class LocalNorm : public InferenceModule {
   std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
       const override;
 
- protected:
-  int32_t featureSize_;
-  int32_t leftContextSize_;
-  int32_t rightContextSize_; // Right context not supported currently
-
  private:
+  StackSequential module;
+  InferenceModuleInfo info;
   friend class cereal::access;
 
-  LocalNorm();
+  TorchModule(); // Used by Cereal for serialization.
 
   template <class Archive>
   void serialize(Archive& ar) {
-    ar(cereal::base_class<InferenceModule>(this),
-       featureSize_,
-       leftContextSize_,
-       rightContextSize_);
+    ar(cereal::base_class<InferenceModule>(this));
   }
 };
-
 } // namespace streaming
 } // namespace w2l
 
-CEREAL_REGISTER_TYPE(w2l::streaming::LocalNorm);
+CEREAL_REGISTER_TYPE(w2l::streaming::TorchModule);

@@ -10,6 +10,7 @@
 
 #include <cereal/access.hpp>
 #include <cereal/types/polymorphic.hpp>
+#include <torch/csrc/api/include/torch/nn/modules/container/sequential.h>
 #include <cstdio>
 #include <memory>
 
@@ -42,6 +43,9 @@ class Sequential : public InferenceModule {
   void setMemoryManager(std::shared_ptr<MemoryManager> memoryManager) override;
 
   virtual std::string debugString() const override;
+
+  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const override;
 
  protected:
   std::vector<std::shared_ptr<InferenceModule>> modules_;

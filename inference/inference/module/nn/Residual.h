@@ -40,6 +40,9 @@ class Residual : public InferenceModule {
 
   std::string debugString() const override;
 
+  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const override;
+
  protected:
   std::shared_ptr<InferenceModule> module_;
   DataType dataType_;
@@ -65,6 +68,21 @@ class Residual : public InferenceModule {
       std::shared_ptr<IOBuffer> bufC) const;
 };
 
+struct ResidualTorchImpl : torch::nn::Module {
+ private:
+  torch::nn::AnyModule module;
+
+ public:
+  explicit ResidualTorchImpl(torch::nn::AnyModule module);
+
+  void pretty_print(std::ostream& stream) const override;
+
+  torch::Tensor forward(torch::Tensor x);
+
+  const torch::nn::AnyModule& getModule() const;
+};
+
+TORCH_MODULE(ResidualTorch);
 } // namespace streaming
 } // namespace w2l
 

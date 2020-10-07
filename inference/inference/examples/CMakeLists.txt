@@ -67,6 +67,7 @@ function(build_example TARGET SRCFILE)
     ${TARGET}
     PRIVATE
       streaming_inference_modules_nn_backend
+      streaming_inference_modules_nn
       streaming_inference_modules_feature
       audio_to_words_example
       ${GFLAGS_LIBRARIES}
@@ -79,3 +80,5 @@ build_example(simple_streaming_asr_example
   ${CMAKE_CURRENT_LIST_DIR}/SimpleStreamingASRExample.cpp)
 build_example(multithreaded_streaming_asr_example
   ${CMAKE_CURRENT_LIST_DIR}/MultithreadedStreamingASRExample.cpp)
+build_example(main
+  ${CMAKE_CURRENT_LIST_DIR}/main.cpp)

@@ -8,10 +8,15 @@
 
 #include "inference/module/nn/backend/fbgemm/Conv1dFbGemm.h"
 
+#include <inference/module/nn/Util.h>
+#include <torch/csrc/api/include/torch/nn.h>
+#include <torch/csrc/api/include/torch/nn/options.h>
 #include <sstream>
 #include <stdexcept>
 
 #include "inference/common/IOBuffer.h"
+
+namespace F = torch::nn::functional;
 
 namespace w2l {
 namespace streaming {
@@ -185,6 +190,48 @@ std::shared_ptr<ModuleProcessingState> Conv1dFbGemm::run(
   return output;
 }
 
+std::pair<InferenceModuleInfo, torch::nn::AnyModule>
+Conv1dFbGemm::getTorchModule() const {
+  auto conv1d = Conv1dUnequalPadding(
+      inChannels_,
+      outChannels_,
+      kernelSize_,
+      stride_,
+      leftPadding_,
+      rightPadding_,
+      groups_);
+
+  auto &weight = conv1d->weight, &bias = conv1d->bias;
+
+  auto fbgemmMat = packedWeights_->pmat();
+  for (int j = 0; j < outChannels_ / groups_; j++)
+    for (int k = 0; k < kernelSize_; k++)
+      for (int i = 0; i < inChannels_ / groups_; i++) {
+        auto item =
+            fbgemmMat[packedWeights_->addr(k * inChannels_ / groups_ + i, j)];
+        auto v = fbgemm::cpu_half2float(item);
+        weight[j][i][k] = v;
+      }
+
+  for (int i = 1; i < groups_; i++)
+    weight.slice(
+        0, i * outChannels_ / groups_, (i + 1) * outChannels_ / groups_) =
+        weight.slice(0, 0, outChannels_ / groups_);
+
+  for (int i = 0; i < groups_; i++)
+    std::copy_n(
+        bias_->buffer_.data<float>(),
+        outChannels_ / groups_,
+        bias.data_ptr<float>() + i * outChannels_ / groups_);
+
+  InferenceModuleInfo info(
+      InferenceModuleInfo::shape::SHAPE_3D,
+      inChannels_,
+      InferenceModuleInfo::shape::SHAPE_3D,
+      outChannels_);
+  return std::make_pair(info, torch::nn::AnyModule(conv1d.ptr()));
+}
+
 std::shared_ptr<Conv1d> createConv1d(
     int inChannels,
     int outChannels,
@@ -206,5 +253,31 @@ std::shared_ptr<Conv1d> createConv1d(
       bias);
 }
 
+Conv1dUnequalPaddingImpl::Conv1dUnequalPaddingImpl(
+    int inChannels,
+    int outChannels,
+    int kernelSize,
+    int stride,
+    int leftPadding,
+    int rightPadding,
+    int groups)
+    : torch::nn::Conv1dImpl(
+          torch::nn::Conv1dOptions(inChannels, outChannels, kernelSize)
+              .stride(stride)
+              .groups(groups)),
+      leftPadding(leftPadding),
+      rightPadding(rightPadding) {}
+
+torch::Tensor Conv1dUnequalPaddingImpl::forward(torch::Tensor x) {
+  x = F::pad(x, F::PadFuncOptions({leftPadding, rightPadding}));
+  x = torch::nn::Conv1dImpl::forward(x);
+  return x;
+}
+
+void Conv1dUnequalPaddingImpl::pretty_print(std::ostream& stream) const {
+  torch::nn::Conv1dImpl::pretty_print(stream);
+  if (leftPadding and rightPadding)
+    stream << "\b, padding=(" << leftPadding << ", " << rightPadding << "))";
+}
 } // namespace streaming
 } // namespace w2l

@@ -7,6 +7,7 @@
  */
 
 #include "inference/module/nn/Sequential.h"
+#include "inference/module/nn/Util.h"
 
 #include <cassert>
 #include <sstream>
@@ -14,7 +15,6 @@
 
 namespace w2l {
 namespace streaming {
-
 Sequential::Sequential(std::vector<std::shared_ptr<InferenceModule>> modules)
     : modules_(modules) {}
 
@@ -71,6 +71,55 @@ std::string Sequential::debugString() const {
 
   ss << "}";
   return ss.str();
+}
+
+std::pair<InferenceModuleInfo, torch::nn::AnyModule>
+Sequential::getTorchModule() const {
+  StackSequential sequential;
+
+  InferenceModuleInfo ret;
+
+  auto prevOutShape = InferenceModuleInfo::shape::SHAPE_PASSTHROUGH;
+  for (auto&& w2lModule : modules_) {
+    auto pair = w2lModule->getTorchModule();
+    auto info = pair.first;
+    auto module = pair.second;
+
+    if (info.inShape == InferenceModuleInfo::shape::SHAPE_2D) {
+      if (prevOutShape == InferenceModuleInfo::shape::SHAPE_3D) {
+        std::vector<long> shape = {info.inChannels, -1};
+        sequential->push_back(Reshape(std::move(shape)));
+        std::vector<long> permutation = {1, 0};
+        sequential->push_back(Permute(std::move(permutation)));
+      }
+      prevOutShape = info.outShape;
+    } else if (info.inShape == InferenceModuleInfo::shape::SHAPE_3D) {
+      if (prevOutShape == InferenceModuleInfo::shape::SHAPE_2D) {
+        std::vector<long> shape = {1, -1, info.inChannels};
+        sequential->push_back(Reshape(std::move(shape)));
+        std::vector<long> permutation = {0, 2, 1};
+        sequential->push_back(Permute(std::move(permutation)));
+      }
+      prevOutShape = info.outShape;
+    }
+
+    if (module.ptr()->as<StackSequential>()) {
+      auto seqModule = module.get<StackSequential>();
+      for (auto itr = seqModule->begin(); itr != seqModule->end(); itr++)
+        sequential->push_back(*itr);
+    } else
+      sequential->push_back(module);
+    if (ret.inChannels == -1) {
+      ret.inShape = info.inShape;
+      ret.inChannels = info.inChannels;
+    }
+    if (info.outChannels != -1) {
+      ret.outShape = info.outShape;
+      ret.outChannels = info.outChannels;
+    }
+  }
+
+  return std::make_pair(ret, torch::nn::AnyModule(sequential.ptr()));
 }
 
 } // namespace streaming

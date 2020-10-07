@@ -8,6 +8,7 @@
 
 #include "inference/module/nn/Relu.h"
 
+#include <torch/csrc/api/include/torch/nn/modules/activation.h>
 #include <cassert>
 #include <cmath>
 #include <sstream>
@@ -35,7 +36,7 @@ std::shared_ptr<ModuleProcessingState> Relu::start(
 std::shared_ptr<ModuleProcessingState> Relu::run(
     std::shared_ptr<ModuleProcessingState> input) {
   assert(input);
-  assert(input->buffers().size() == 1);
+  //  assert(input->buffers().size() == 1);
   std::shared_ptr<IOBuffer> inputBuf = input->buffer(0);
   assert(inputBuf);
 
@@ -65,6 +66,12 @@ std::string Relu::debugString() const {
   std::stringstream ss;
   ss << "Relu:{dataType_=" << dataTypeString(dataType_) << "}";
   return ss.str();
+}
+
+std::pair<InferenceModuleInfo, torch::nn::AnyModule> Relu::getTorchModule()
+    const {
+  return std::make_pair(
+      InferenceModuleInfo(), torch::nn::AnyModule(torch::nn::ReLU().ptr()));
 }
 
 } // namespace streaming

@@ -45,5 +45,11 @@ std::string Identity::debugString() const {
   return ss.str();
 }
 
+std::pair<InferenceModuleInfo, torch::nn::AnyModule> Identity::getTorchModule()
+    const {
+  return std::make_pair(
+      InferenceModuleInfo(), torch::nn::AnyModule(torch::nn::Identity().ptr()));
+}
+
 } // namespace streaming
 } // namespace w2l

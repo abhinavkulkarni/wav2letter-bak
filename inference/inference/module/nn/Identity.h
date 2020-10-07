@@ -17,6 +17,8 @@
 #include "inference/module/InferenceModule.h"
 #include "inference/module/ModuleParameter.h"
 
+#include <torch/torch.h>
+
 namespace w2l {
 namespace streaming {
 
@@ -34,6 +36,9 @@ class Identity : public InferenceModule {
       std::shared_ptr<ModuleProcessingState> input) override;
 
   std::string debugString() const override;
+
+  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const override;
 
  private:
   friend class cereal::access;

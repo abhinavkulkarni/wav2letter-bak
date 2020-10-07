@@ -42,6 +42,9 @@ class LinearFbGemm : public Linear {
   std::string debugString() const override;
   std::string debugStringWithContent() const override;
 
+  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const override;
+
  protected:
   void init(std::shared_ptr<ModuleParameter> weights);
   std::string debugStringImpl(bool withContent) const;

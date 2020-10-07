@@ -10,6 +10,7 @@
 
 #include <cereal/access.hpp>
 #include <cereal/types/polymorphic.hpp>
+#include <torch/csrc/api/include/torch/nn/modules/normalization.h>
 #include <cstdio>
 #include <memory>
 
@@ -34,6 +35,9 @@ class LayerNorm : public InferenceModule {
 
   std::string debugString() const override;
 
+  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const override;
+
  protected:
   int32_t featureSize_;
   float alpha_;
@@ -49,6 +53,24 @@ class LayerNorm : public InferenceModule {
     ar(cereal::base_class<InferenceModule>(this), featureSize_, alpha_, beta_);
   }
 };
+
+struct GroupNormImpl : torch::nn::GroupNormImpl {
+ private:
+  float alpha, beta;
+
+ public:
+  explicit GroupNormImpl(
+      int numGroups,
+      int numChannels,
+      float alpha,
+      float beta);
+
+  void pretty_print(std::ostream& stream) const override;
+
+  torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(GroupNorm);
 
 } // namespace streaming
 } // namespace w2l

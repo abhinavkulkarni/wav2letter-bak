@@ -83,5 +83,41 @@ std::string LayerNorm::debugString() const {
   return ss.str();
 }
 
+std::pair<InferenceModuleInfo, torch::nn::AnyModule> LayerNorm::getTorchModule()
+    const {
+  return std::make_pair(
+      InferenceModuleInfo(),
+      torch::nn::AnyModule(GroupNorm(1, featureSize_, alpha_, beta_).ptr()));
+}
+
+GroupNormImpl::GroupNormImpl(
+    int numGroups,
+    int numChannels,
+    float alpha,
+    float beta)
+    : torch::nn::GroupNormImpl(numGroups, numChannels),
+      alpha(alpha),
+      beta(beta) {
+  auto &weight = torch::nn::GroupNormImpl::weight,
+       &bias = torch::nn::GroupNormImpl::bias;
+  weight = weight * alpha;
+  bias = bias + beta;
+}
+
+torch::Tensor GroupNormImpl::forward(torch::Tensor x) {
+  if (x.sizes().size() == 3)
+    return torch::nn::GroupNormImpl::forward(x.permute({2, 1, 0}))
+        .permute({2, 1, 0});
+  else
+    return torch::nn::GroupNormImpl::forward(x.unsqueeze(-1)).squeeze(-1);
+}
+
+void GroupNormImpl::pretty_print(std::ostream& stream) const {
+  auto& options = torch::nn::GroupNormImpl::options;
+  stream << "GroupNorm(" << options.num_groups() << ", "
+         << options.num_channels() << ", alpha=" << alpha << ", beta=" << beta
+         << ")";
+}
+
 } // namespace streaming
 } // namespace w2l

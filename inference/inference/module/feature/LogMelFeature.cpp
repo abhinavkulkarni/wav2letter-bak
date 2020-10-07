@@ -91,5 +91,10 @@ void LogMelFeature::init() {
   mfscFeaturizer_ = std::make_shared<Mfsc>(featParams_);
 }
 
+std::pair<InferenceModuleInfo, torch::nn::AnyModule>
+LogMelFeature::getTorchModule() const {
+  return std::make_pair(InferenceModuleInfo(), torch::nn::AnyModule());
+}
+
 } // namespace streaming
 } // namespace w2l

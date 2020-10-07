@@ -8,6 +8,7 @@
 
 #include "inference/module/nn/backend/fbgemm/LinearFbGemm.h"
 
+#include <torch/csrc/api/include/torch/nn/modules/linear.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -101,6 +102,28 @@ std::shared_ptr<ModuleProcessingState> LinearFbGemm::run(
 
   inputBuf->consume<float>(nFrames * nInput_);
   return output;
+}
+
+std::pair<InferenceModuleInfo, torch::nn::AnyModule>
+LinearFbGemm::getTorchModule() const {
+  auto linear = torch::nn::Linear(nInput_, nOutput_);
+
+  auto &weight = linear->weight, &bias = linear->bias;
+  auto fbgemmMat = packedWeights_->pmat();
+  for (int i = 0; i < nInput_; i++)
+    for (int j = 0; j < nOutput_; j++) {
+      auto item = fbgemmMat[packedWeights_->addr(i, j)];
+      auto v = fbgemm::cpu_half2float(item);
+      weight[j][i] = v;
+    }
+
+  std::copy_n(bias_->buffer_.data<float>(), nOutput_, bias.data_ptr<float>());
+  InferenceModuleInfo info(
+      InferenceModuleInfo::shape::SHAPE_2D,
+      nInput_,
+      InferenceModuleInfo::shape::SHAPE_2D,
+      nOutput_);
+  return std::make_pair(info, torch::nn::AnyModule(linear.ptr()));
 }
 
 std::shared_ptr<Linear> createLinear(

@@ -114,5 +114,10 @@ std::string LocalNorm::debugString() const {
   return ss.str();
 }
 
+std::pair<InferenceModuleInfo, torch::nn::AnyModule> LocalNorm::getTorchModule()
+    const {
+  return std::make_pair(InferenceModuleInfo(), torch::nn::AnyModule());
+}
+
 } // namespace streaming
 } // namespace w2l

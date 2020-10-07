@@ -36,6 +36,9 @@ class Relu : public InferenceModule {
 
   std::string debugString() const override;
 
+  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const override;
+
  protected:
   DataType dataType_;
 

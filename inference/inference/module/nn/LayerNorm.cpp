@@ -90,6 +90,17 @@ std::pair<InferenceModuleInfo, torch::nn::AnyModule> LayerNorm::getTorchModule()
       torch::nn::AnyModule(GroupNorm(1, featureSize_, alpha_, beta_).ptr()));
 }
 
+rapidjson::Document LayerNorm::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  rapidjson::Document d(rapidjson::kObjectType);
+
+  d.AddMember("name", "GroupNorm", allocator);
+  d.AddMember("alpha", alpha_, allocator);
+  d.AddMember("beta", beta_, allocator);
+
+  return d;
+}
+
 GroupNormImpl::GroupNormImpl(
     int numGroups,
     int numChannels,

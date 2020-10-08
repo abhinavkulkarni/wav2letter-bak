@@ -125,6 +125,16 @@ LinearFbGemm::getTorchModule() const {
       nOutput_);
   return std::make_pair(info, torch::nn::AnyModule(linear.ptr()));
 }
+rapidjson::Document LinearFbGemm::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  rapidjson::Document d(rapidjson::kObjectType);
+
+  d.AddMember("name", "Linear", allocator);
+  d.AddMember("inFeatures", nInput_, allocator);
+  d.AddMember("outFeatures", nOutput_, allocator);
+
+  return d;
+}
 
 std::shared_ptr<Linear> createLinear(
     int nInput,

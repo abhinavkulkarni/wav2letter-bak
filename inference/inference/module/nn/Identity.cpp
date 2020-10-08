@@ -50,6 +50,12 @@ std::pair<InferenceModuleInfo, torch::nn::AnyModule> Identity::getTorchModule()
   return std::make_pair(
       InferenceModuleInfo(), torch::nn::AnyModule(torch::nn::Identity().ptr()));
 }
+rapidjson::Document Identity::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  rapidjson::Document d(rapidjson::kObjectType);
+  d.AddMember("name", "Identity", allocator);
+  return d;
+}
 
 } // namespace streaming
 } // namespace w2l

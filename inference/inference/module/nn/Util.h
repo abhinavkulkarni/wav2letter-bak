@@ -56,5 +56,7 @@ TORCH_MODULE(Reshape);
 std::pair<InferenceModuleInfo, StackSequential> getTorchModule(
     const std::shared_ptr<Sequential>& module);
 
+rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule);
+
 } // namespace streaming
 } // namespace w2l

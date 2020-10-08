@@ -128,6 +128,15 @@ std::pair<InferenceModuleInfo, torch::nn::AnyModule> Residual::getTorchModule()
   return std::make_pair(
       info, torch::nn::AnyModule(ResidualTorch(std::move(module))));
 }
+rapidjson::Document Residual::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  rapidjson::Document d(rapidjson::kObjectType);
+
+  d.AddMember("name", "Residual", allocator);
+  d.AddMember("module", module_->getJSON(allocator).Move(), allocator);
+
+  return d;
+}
 
 ResidualTorchImpl::ResidualTorchImpl(torch::nn::AnyModule module)
     : module(std::move(module)) {}

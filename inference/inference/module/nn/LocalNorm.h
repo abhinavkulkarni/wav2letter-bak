@@ -37,6 +37,9 @@ class LocalNorm : public InferenceModule {
   std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
       const override;
 
+  rapidjson::Document getJSON(
+      rapidjson::MemoryPoolAllocator<>& allocator) const override;
+
  protected:
   int32_t featureSize_;
   int32_t leftContextSize_;

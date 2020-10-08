@@ -11,6 +11,7 @@
 #include <cereal/archives/binary.hpp>
 #include <cereal/archives/portable_binary.hpp>
 #include <cereal/archives/xml.hpp>
+#include <cereal/external/rapidjson/document.h>
 #include <cereal/types/polymorphic.hpp>
 #include <torch/csrc/api/include/torch/nn/modules/container/any.h>
 #include <memory>
@@ -81,6 +82,9 @@ class InferenceModule {
 
   virtual std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
       const = 0;
+
+  virtual rapidjson::Document getJSON(
+      rapidjson::MemoryPoolAllocator<>& allocator) const = 0;
 
  protected:
   std::shared_ptr<MemoryManager> memoryManager_;

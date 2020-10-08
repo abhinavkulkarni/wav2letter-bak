@@ -119,5 +119,10 @@ std::pair<InferenceModuleInfo, torch::nn::AnyModule> LocalNorm::getTorchModule()
   return std::make_pair(InferenceModuleInfo(), torch::nn::AnyModule());
 }
 
+rapidjson::Document LocalNorm::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  return rapidjson::Document();
+}
+
 } // namespace streaming
 } // namespace w2l

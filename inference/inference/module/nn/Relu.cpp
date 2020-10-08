@@ -74,5 +74,14 @@ std::pair<InferenceModuleInfo, torch::nn::AnyModule> Relu::getTorchModule()
       InferenceModuleInfo(), torch::nn::AnyModule(torch::nn::ReLU().ptr()));
 }
 
+rapidjson::Document Relu::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  rapidjson::Document d(rapidjson::kObjectType);
+
+  d.AddMember("name", "ReLU", allocator);
+
+  return d;
+}
+
 } // namespace streaming
 } // namespace w2l

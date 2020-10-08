@@ -232,6 +232,22 @@ Conv1dFbGemm::getTorchModule() const {
   return std::make_pair(info, torch::nn::AnyModule(conv1d.ptr()));
 }
 
+rapidjson::Document Conv1dFbGemm::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  rapidjson::Document d(rapidjson::kObjectType);
+
+  d.AddMember("name", "Conv1d", allocator);
+  d.AddMember("inChannels", inChannels_, allocator);
+  d.AddMember("outChannels", outChannels_, allocator);
+  d.AddMember("kernelSize", kernelSize_, allocator);
+  d.AddMember("groups", groups_, allocator);
+  d.AddMember("stride", stride_, allocator);
+  d.AddMember("leftPadding", leftPadding_, allocator);
+  d.AddMember("rightPadding", rightPadding_, allocator);
+
+  return d;
+}
+
 std::shared_ptr<Conv1d> createConv1d(
     int inChannels,
     int outChannels,

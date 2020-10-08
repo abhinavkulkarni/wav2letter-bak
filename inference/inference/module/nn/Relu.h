@@ -39,6 +39,9 @@ class Relu : public InferenceModule {
   std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
       const override;
 
+  rapidjson::Document getJSON(
+      rapidjson::MemoryPoolAllocator<>& allocator) const override;
+
  protected:
   DataType dataType_;
 

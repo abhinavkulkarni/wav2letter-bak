@@ -45,8 +45,11 @@ class Linear : public InferenceModule {
 
   virtual std::string debugStringWithContent() const;
 
-  virtual std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
-      const = 0;
+  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+      const override = 0;
+
+  rapidjson::Document getJSON(
+      rapidjson::MemoryPoolAllocator<>& allocator) const override = 0;
 
  protected:
   uint32_t nInput_;

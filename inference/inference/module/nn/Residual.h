@@ -43,6 +43,9 @@ class Residual : public InferenceModule {
   std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
       const override;
 
+  rapidjson::Document getJSON(
+      rapidjson::MemoryPoolAllocator<>& allocator) const override;
+
  protected:
   std::shared_ptr<InferenceModule> module_;
   DataType dataType_;

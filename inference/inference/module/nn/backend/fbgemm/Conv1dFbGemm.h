@@ -56,6 +56,9 @@ class Conv1dFbGemm : public Conv1d {
   std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
       const override;
 
+  rapidjson::Document getJSON(
+      rapidjson::MemoryPoolAllocator<>& allocator) const override;
+
  protected:
   void init(std::shared_ptr<ModuleParameter> weights);
 

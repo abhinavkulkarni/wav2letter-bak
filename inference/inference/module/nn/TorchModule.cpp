@@ -63,5 +63,10 @@ std::string TorchModule::debugString() const {
   ss << std::endl;
   return ss.str();
 }
+
+rapidjson::Document TorchModule::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  return rapidjson::Document();
+}
 } // namespace streaming
 } // namespace w2l

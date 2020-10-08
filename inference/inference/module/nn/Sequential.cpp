@@ -122,5 +122,18 @@ Sequential::getTorchModule() const {
   return std::make_pair(ret, torch::nn::AnyModule(sequential.ptr()));
 }
 
+rapidjson::Document Sequential::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  rapidjson::Document d(rapidjson::kObjectType);
+
+  d.AddMember("name", "Sequential", allocator);
+  rapidjson::Document children(rapidjson::kArrayType);
+  for (const auto& module : modules_)
+    children.PushBack(module->getJSON(allocator).Move(), allocator);
+  d.AddMember("children", children, allocator);
+
+  return d;
+}
+
 } // namespace streaming
 } // namespace w2l

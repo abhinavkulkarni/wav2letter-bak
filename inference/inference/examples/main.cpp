@@ -6,6 +6,7 @@
 #include <inference/module/ModuleParameter.h>
 #include <inference/module/nn/LayerNorm.h>
 #include <inference/module/nn/Relu.h>
+#include <inference/module/nn/Residual.h>
 #include <inference/module/nn/Sequential.h>
 #include <inference/module/nn/TDSBlock.h>
 #include <inference/module/nn/TorchModule.h>
@@ -15,6 +16,8 @@
 using namespace w2l;
 using namespace w2l::streaming;
 using namespace torch;
+
+using namespace rapidjson;
 
 std::shared_ptr<ModuleParameter> initialize_weights(int size) {
   std::vector<float> vec(size);
@@ -190,6 +193,12 @@ int main(int argc, char* argv[]) {
   // Run module on a sample data
   process(torchModule, numChannels, numChannels, T);
 
+  auto d = getJSON(dnnModule);
+  StringBuffer buffer;
+  PrettyWriter<StringBuffer> writer(buffer);
+  d.Accept(writer);
+  std::cout << buffer.GetString() << std::endl;
+
   // Convert the accoustic module into a libtorch module
-  fbgemmTolibtorch(argc, argv);
+  //  fbgemmTolibtorch(argc, argv);
 }

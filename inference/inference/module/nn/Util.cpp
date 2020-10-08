@@ -77,5 +77,16 @@ std::pair<InferenceModuleInfo, StackSequential> getTorchModule(
 
   return std::make_pair(info, sequential);
 }
+
+rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule) {
+  rapidjson::Document d(rapidjson::kObjectType);
+  auto& allocator = d.GetAllocator();
+
+  for (auto& m : dnnModule->getJSON(allocator).GetObject())
+    d.AddMember(m.name, m.value.Move(), allocator);
+
+  return d;
+}
+
 } // namespace streaming
 } // namespace w2l

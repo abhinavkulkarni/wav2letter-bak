@@ -73,53 +73,72 @@ std::string Sequential::debugString() const {
   return ss.str();
 }
 
-std::pair<InferenceModuleInfo, torch::nn::AnyModule>
-Sequential::getTorchModule() const {
+std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
   StackSequential sequential;
 
-  InferenceModuleInfo ret;
+  auto ret = std::make_shared<InferenceModuleTorchHolder>("Sequential");
+  std::map<std::string, int> counts;
 
-  auto prevOutShape = InferenceModuleInfo::shape::SHAPE_PASSTHROUGH;
+  auto getName = [](const std::string& name,
+                    std::map<std::string, int>& counts) {
+    if (counts.count(name) == 0)
+      counts[name] = 0;
+    return name + "-" + std::to_string(counts[name]++);
+  };
+
+  auto prevOutShape = InferenceModuleTorchHolder::shape::SHAPE_PASSTHROUGH;
   for (auto&& w2lModule : modules_) {
-    auto pair = w2lModule->getTorchModule();
-    auto info = pair.first;
-    auto module = pair.second;
+    auto holder = w2lModule->getTorchModule();
 
-    if (info.inShape == InferenceModuleInfo::shape::SHAPE_2D) {
-      if (prevOutShape == InferenceModuleInfo::shape::SHAPE_3D) {
-        std::vector<long> shape = {info.inChannels, -1};
-        sequential->push_back(Reshape(std::move(shape)));
+    if (holder->inShape == InferenceModuleTorchHolder::shape::SHAPE_2D) {
+      if (prevOutShape == InferenceModuleTorchHolder::shape::SHAPE_3D) {
+        std::vector<long> shape = {holder->inChannels, -1};
+        sequential->push_back(
+            getName("Reshape", counts), Reshape(std::move(shape)));
         std::vector<long> permutation = {1, 0};
-        sequential->push_back(Permute(std::move(permutation)));
+        sequential->push_back(
+            getName("Permute", counts), Permute(std::move(permutation)));
       }
-      prevOutShape = info.outShape;
-    } else if (info.inShape == InferenceModuleInfo::shape::SHAPE_3D) {
-      if (prevOutShape == InferenceModuleInfo::shape::SHAPE_2D) {
-        std::vector<long> shape = {1, -1, info.inChannels};
-        sequential->push_back(Reshape(std::move(shape)));
+      prevOutShape = holder->outShape;
+    } else if (holder->inShape == InferenceModuleTorchHolder::shape::SHAPE_3D) {
+      if (prevOutShape == InferenceModuleTorchHolder::shape::SHAPE_2D) {
+        std::vector<long> shape = {1, -1, holder->inChannels};
+        sequential->push_back(
+            getName("Reshape", counts), Reshape(std::move(shape)));
         std::vector<long> permutation = {0, 2, 1};
-        sequential->push_back(Permute(std::move(permutation)));
+        sequential->push_back(
+            getName("Permute", counts), Permute(std::move(permutation)));
       }
-      prevOutShape = info.outShape;
+      prevOutShape = holder->outShape;
     }
 
-    if (module.ptr()->as<StackSequential>()) {
-      auto seqModule = module.get<StackSequential>();
-      for (auto itr = seqModule->begin(); itr != seqModule->end(); itr++)
-        sequential->push_back(*itr);
-    } else
-      sequential->push_back(module);
-    if (ret.inChannels == -1) {
-      ret.inShape = info.inShape;
-      ret.inChannels = info.inChannels;
+    if (holder->anyModule.ptr()->as<StackSequential>()) {
+      auto seqModule = holder->anyModule.get<StackSequential>();
+      std::vector<std::string> names;
+      for (auto&& item : seqModule->named_children()) {
+        auto name = item.key();
+        name = name.substr(0, name.find('-'));
+        names.push_back(name);
+      }
+
+      int i = 0;
+      for (const auto& itr : *seqModule)
+        sequential->push_back(getName(names[i++], counts), itr);
+    } else {
+      sequential->push_back(getName(holder->type, counts), holder->anyModule);
     }
-    if (info.outChannels != -1) {
-      ret.outShape = info.outShape;
-      ret.outChannels = info.outChannels;
+    if (ret->inChannels == -1) {
+      ret->inShape = holder->inShape;
+      ret->inChannels = holder->inChannels;
+    }
+    if (holder->outChannels != -1) {
+      ret->outShape = holder->outShape;
+      ret->outChannels = holder->outChannels;
     }
   }
 
-  return std::make_pair(ret, torch::nn::AnyModule(sequential.ptr()));
+  ret->anyModule = torch::nn::AnyModule(sequential);
+  return ret;
 }
 
 rapidjson::Document Sequential::getJSON(

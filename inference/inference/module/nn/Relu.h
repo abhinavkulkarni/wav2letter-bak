@@ -36,8 +36,7 @@ class Relu : public InferenceModule {
 
   std::string debugString() const override;
 
-  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
-      const override;
+  std::shared_ptr<InferenceModuleTorchHolder> getTorchModule() const override;
 
   rapidjson::Document getJSON(
       rapidjson::MemoryPoolAllocator<>& allocator) const override;

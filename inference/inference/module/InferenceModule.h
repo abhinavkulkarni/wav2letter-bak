@@ -15,6 +15,7 @@
 #include <cereal/types/polymorphic.hpp>
 #include <torch/csrc/api/include/torch/nn/modules/container/any.h>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "inference/common/MemoryManager.h"
@@ -23,27 +24,26 @@
 namespace w2l {
 namespace streaming {
 
-struct InferenceModuleInfo {
+struct InferenceModuleTorchHolder {
  public:
   enum shape { SHAPE_2D, SHAPE_3D, SHAPE_PASSTHROUGH };
 
+  std::string type;
   shape inShape, outShape;
   int inChannels, outChannels;
+  torch::nn::AnyModule anyModule{};
 
-  InferenceModuleInfo() {
-    inShape = outShape = shape::SHAPE_PASSTHROUGH;
-    inChannels = outChannels = -1;
-  }
+  InferenceModuleTorchHolder();
 
-  InferenceModuleInfo(
+  explicit InferenceModuleTorchHolder(std::string type);
+
+  InferenceModuleTorchHolder(
+      std::string type,
       shape inShape,
       int inChannels,
       shape outShape,
-      int outChannels)
-      : inShape(inShape),
-        inChannels(inChannels),
-        outShape(outShape),
-        outChannels(outChannels) {}
+      int outChannels,
+      torch::nn::AnyModule anyModule);
 };
 
 // Base class for all modules of the inference processing graph, including:
@@ -80,7 +80,7 @@ class InferenceModule {
 
   virtual std::string debugString() const = 0;
 
-  virtual std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+  virtual std::shared_ptr<InferenceModuleTorchHolder> getTorchModule()
       const = 0;
 
   virtual rapidjson::Document getJSON(

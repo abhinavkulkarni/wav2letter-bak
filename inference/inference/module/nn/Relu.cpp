@@ -68,10 +68,10 @@ std::string Relu::debugString() const {
   return ss.str();
 }
 
-std::pair<InferenceModuleInfo, torch::nn::AnyModule> Relu::getTorchModule()
-    const {
-  return std::make_pair(
-      InferenceModuleInfo(), torch::nn::AnyModule(torch::nn::ReLU().ptr()));
+std::shared_ptr<InferenceModuleTorchHolder> Relu::getTorchModule() const {
+  auto holder = std::make_shared<InferenceModuleTorchHolder>("ReLU");
+  holder->anyModule = torch::nn::AnyModule(torch::nn::ReLU());
+  return holder;
 }
 
 rapidjson::Document Relu::getJSON(

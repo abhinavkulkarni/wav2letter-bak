@@ -40,7 +40,7 @@ class LogMelFeature : public InferenceModule {
 
   std::string debugString() const override;
 
-  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule() const;
+  std::shared_ptr<InferenceModuleTorchHolder> getTorchModule() const;
 
  private:
   int32_t numFilters_;

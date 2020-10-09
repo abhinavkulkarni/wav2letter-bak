@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cereal/external/rapidjson/document.h>
 #include <inference/module/nn/Sequential.h>
 #include <torch/csrc/api/include/torch/nn.h>
 
@@ -24,11 +25,10 @@ struct StackSequentialImpl : torch::nn::SequentialImpl {
 TORCH_MODULE(StackSequential);
 
 struct PermuteImpl : torch::nn::Module {
- private:
+ public:
   std::vector<long> vec;
   c10::IntArrayRef permutation;
 
- public:
   explicit PermuteImpl(std::vector<long>&& vec);
 
   void pretty_print(std::ostream& stream) const override;
@@ -39,11 +39,10 @@ struct PermuteImpl : torch::nn::Module {
 TORCH_MODULE(Permute);
 
 struct ReshapeImpl : torch::nn::Module {
- private:
+ public:
   std::vector<long> vec;
   c10::IntArrayRef sizes;
 
- public:
   explicit ReshapeImpl(std::vector<long>&& vec);
 
   void pretty_print(std::ostream& stream) const override;
@@ -53,10 +52,63 @@ struct ReshapeImpl : torch::nn::Module {
 
 TORCH_MODULE(Reshape);
 
-std::pair<InferenceModuleInfo, StackSequential> getTorchModule(
+struct GroupNormImpl : torch::nn::GroupNormImpl {
+ public:
+  float alpha, beta;
+
+  explicit GroupNormImpl(
+      int numGroups,
+      int numChannels,
+      float alpha,
+      float beta);
+
+  void pretty_print(std::ostream& stream) const override;
+
+  torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(GroupNorm);
+
+struct ResidualTorchImpl : torch::nn::Module {
+ public:
+  std::string name;
+  torch::nn::AnyModule anyModule;
+
+  explicit ResidualTorchImpl(std::string name, torch::nn::AnyModule anyModule);
+
+  void pretty_print(std::ostream& stream) const override;
+
+  torch::Tensor forward(torch::Tensor x);
+};
+
+TORCH_MODULE(ResidualTorch);
+
+struct Conv1dUnequalPaddingImpl : torch::nn::Conv1dImpl {
+ public:
+  int leftPadding, rightPadding;
+
+  Conv1dUnequalPaddingImpl(
+      int inChannels,
+      int outChannels,
+      int kernelSize,
+      int stride,
+      int leftPadding,
+      int rightPadding,
+      int groups);
+
+  torch::Tensor forward(torch::Tensor x);
+
+  void pretty_print(std::ostream& stream) const override;
+};
+
+TORCH_MODULE(Conv1dUnequalPadding);
+
+std::shared_ptr<InferenceModuleTorchHolder> getTorchModule(
     const std::shared_ptr<Sequential>& module);
 
 rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule);
+
+rapidjson::Document getJSON(const StackSequential& seqModule);
 
 } // namespace streaming
 } // namespace w2l

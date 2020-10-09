@@ -18,9 +18,9 @@ namespace w2l {
 namespace streaming {
 class TorchModule : public InferenceModule {
  public:
-  TorchModule(StackSequential module, InferenceModuleInfo info);
+  TorchModule(std::shared_ptr<InferenceModuleTorchHolder> holder);
 
-  virtual ~TorchModule() override = default;
+  ~TorchModule() override = default;
 
   std::shared_ptr<ModuleProcessingState> start(
       std::shared_ptr<ModuleProcessingState> input) override;
@@ -30,15 +30,13 @@ class TorchModule : public InferenceModule {
 
   std::string debugString() const override;
 
-  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
-      const override;
+  std::shared_ptr<InferenceModuleTorchHolder> getTorchModule() const override;
 
   rapidjson::Document getJSON(
-      rapidjson::MemoryPoolAllocator<>& allocator) const;
+      rapidjson::MemoryPoolAllocator<>& allocator) const override;
 
  private:
-  StackSequential module;
-  InferenceModuleInfo info;
+  std::shared_ptr<InferenceModuleTorchHolder> holder;
   friend class cereal::access;
 
   TorchModule(); // Used by Cereal for serialization.

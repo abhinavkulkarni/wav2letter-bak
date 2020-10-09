@@ -17,7 +17,6 @@
 
 namespace w2l {
 namespace streaming {
-
 Residual::Residual(std::shared_ptr<InferenceModule> module, DataType dataType)
     : module_(module),
       dataType_(dataType),
@@ -120,13 +119,20 @@ void Residual::sum(
   }
 }
 
-std::pair<InferenceModuleInfo, torch::nn::AnyModule> Residual::getTorchModule()
-    const {
-  auto pair = module_->getTorchModule();
-  auto info = pair.first;
-  auto module = pair.second;
-  return std::make_pair(
-      info, torch::nn::AnyModule(ResidualTorch(std::move(module))));
+std::shared_ptr<InferenceModuleTorchHolder> Residual::getTorchModule() const {
+  auto holder = module_->getTorchModule();
+  auto anyModule =
+      torch::nn::AnyModule(ResidualTorch(holder->type, holder->anyModule));
+
+  auto ret = std::make_shared<InferenceModuleTorchHolder>(
+      "Residual",
+      holder->inShape,
+      holder->inChannels,
+      holder->outShape,
+      holder->outChannels,
+      anyModule);
+
+  return ret;
 }
 rapidjson::Document Residual::getJSON(
     rapidjson::MemoryPoolAllocator<>& allocator) const {
@@ -136,33 +142,6 @@ rapidjson::Document Residual::getJSON(
   d.AddMember("module", module_->getJSON(allocator).Move(), allocator);
 
   return d;
-}
-
-ResidualTorchImpl::ResidualTorchImpl(torch::nn::AnyModule module)
-    : module(std::move(module)) {}
-
-void ResidualTorchImpl::pretty_print(std::ostream& stream) const {
-  stream << "Residual(";
-  if (auto* ptr = module.ptr()->as<torch::nn::Conv1d>())
-    stream << *ptr << ")";
-  else if (auto* ptr = module.ptr()->as<torch::nn::Linear>())
-    stream << *ptr << ")";
-  else if (auto* ptr = module.ptr()->as<GroupNorm>())
-    stream << *ptr << ")";
-  else if (auto* ptr = module.ptr()->as<StackSequential>())
-    stream << *ptr << ")";
-  else if (auto* ptr = module.ptr()->as<ResidualTorch>())
-    stream << *ptr << ")";
-  else
-    stream << module.ptr() << ")";
-}
-
-torch::Tensor ResidualTorchImpl::forward(torch::Tensor x) {
-  return x + module.forward(x);
-}
-
-const torch::nn::AnyModule& ResidualTorchImpl::getModule() const {
-  return module;
 }
 
 } // namespace streaming

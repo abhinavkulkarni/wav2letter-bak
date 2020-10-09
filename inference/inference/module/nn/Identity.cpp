@@ -45,11 +45,12 @@ std::string Identity::debugString() const {
   return ss.str();
 }
 
-std::pair<InferenceModuleInfo, torch::nn::AnyModule> Identity::getTorchModule()
-    const {
-  return std::make_pair(
-      InferenceModuleInfo(), torch::nn::AnyModule(torch::nn::Identity().ptr()));
+std::shared_ptr<InferenceModuleTorchHolder> Identity::getTorchModule() const {
+  auto holder = std::make_shared<InferenceModuleTorchHolder>("Identity");
+  holder->anyModule = torch::nn::AnyModule(torch::nn::Identity());
+  return holder;
 }
+
 rapidjson::Document Identity::getJSON(
     rapidjson::MemoryPoolAllocator<>& allocator) const {
   rapidjson::Document d(rapidjson::kObjectType);

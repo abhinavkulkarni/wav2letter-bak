@@ -114,9 +114,9 @@ std::string LocalNorm::debugString() const {
   return ss.str();
 }
 
-std::pair<InferenceModuleInfo, torch::nn::AnyModule> LocalNorm::getTorchModule()
-    const {
-  return std::make_pair(InferenceModuleInfo(), torch::nn::AnyModule());
+std::shared_ptr<InferenceModuleTorchHolder> LocalNorm::getTorchModule() const {
+  auto holder = std::make_shared<InferenceModuleTorchHolder>("LocalNorm");
+  return holder;
 }
 
 rapidjson::Document LocalNorm::getJSON(

@@ -7,13 +7,16 @@
 #include "Util.h"
 
 #include <cassert>
+#include <utility>
 
 namespace w2l {
 namespace streaming {
-TorchModule::TorchModule(StackSequential module, InferenceModuleInfo info)
-    : module(module), info(info) {}
+TorchModule::TorchModule(std::shared_ptr<InferenceModuleTorchHolder> holder)
+    : holder(std::move(holder)) {
+  this->holder->type = "TorchModule";
+}
 
-TorchModule::TorchModule() {}
+TorchModule::TorchModule() = default;
 
 std::shared_ptr<ModuleProcessingState> TorchModule::start(
     std::shared_ptr<ModuleProcessingState> input) {
@@ -29,7 +32,7 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
   std::shared_ptr<IOBuffer> inputBuf = input->buffer(0);
   assert(inputBuf);
 
-  int nFrames = inputBuf->size<float>() / info.inChannels;
+  int nFrames = inputBuf->size<float>() / holder->inChannels;
   if (nFrames == 0) {
     return output;
   }
@@ -38,28 +41,28 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
   assert(outputBuf);
 
   auto x = torch::from_blob(
-      input->buffer(0)->data<float>(), nFrames * info.inChannels);
-  x = module->forward(x).contiguous();
+      input->buffer(0)->data<float>(), nFrames * holder->inChannels);
+  x = holder->anyModule.forward(x).contiguous();
 
-  auto outSize = nFrames * info.outChannels;
+  auto outSize = nFrames * holder->outChannels;
   outputBuf->ensure<float>(outSize);
   auto* outPtr = outputBuf->tail<float>();
   std::copy_n(x.data_ptr<float>(), outSize, outPtr);
 
   outputBuf->move<float>(outSize);
 
-  inputBuf->consume<float>(nFrames * info.inChannels);
+  inputBuf->consume<float>(nFrames * holder->inChannels);
   return output;
 }
 
-std::pair<InferenceModuleInfo, torch::nn::AnyModule>
-TorchModule::getTorchModule() const {
-  return std::make_pair(info, torch::nn::AnyModule(module));
+std::shared_ptr<InferenceModuleTorchHolder> TorchModule::getTorchModule()
+    const {
+  return holder;
 }
 
 std::string TorchModule::debugString() const {
   std::stringstream ss;
-  ss << module;
+  ss << holder->anyModule.get<StackSequential>();
   ss << std::endl;
   return ss.str();
 }

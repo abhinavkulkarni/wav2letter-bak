@@ -35,7 +35,7 @@ class LayerNorm : public InferenceModule {
 
   std::string debugString() const override;
 
-  std::pair<InferenceModuleInfo, torch::nn::AnyModule> getTorchModule()
+  std::shared_ptr<InferenceModuleTorchHolder> getTorchModule()
       const override;
 
   rapidjson::Document getJSON(
@@ -56,24 +56,6 @@ class LayerNorm : public InferenceModule {
     ar(cereal::base_class<InferenceModule>(this), featureSize_, alpha_, beta_);
   }
 };
-
-struct GroupNormImpl : torch::nn::GroupNormImpl {
- private:
-  float alpha, beta;
-
- public:
-  explicit GroupNormImpl(
-      int numGroups,
-      int numChannels,
-      float alpha,
-      float beta);
-
-  void pretty_print(std::ostream& stream) const override;
-
-  torch::Tensor forward(torch::Tensor x);
-};
-
-TORCH_MODULE(GroupNorm);
 
 } // namespace streaming
 } // namespace w2l

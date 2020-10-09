@@ -39,5 +39,16 @@ std::string Linear::debugStringWithContent() const {
   return debugString();
 }
 
+rapidjson::Document Linear::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  rapidjson::Document d(rapidjson::kObjectType);
+
+  d.AddMember("name", "Linear", allocator);
+  d.AddMember("inFeatures", nInput_, allocator);
+  d.AddMember("outFeatures", nOutput_, allocator);
+
+  return d;
+}
+
 } // namespace streaming
 } // namespace w2l

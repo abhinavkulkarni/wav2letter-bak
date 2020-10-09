@@ -91,9 +91,10 @@ void LogMelFeature::init() {
   mfscFeaturizer_ = std::make_shared<Mfsc>(featParams_);
 }
 
-std::pair<InferenceModuleInfo, torch::nn::AnyModule>
-LogMelFeature::getTorchModule() const {
-  return std::make_pair(InferenceModuleInfo(), torch::nn::AnyModule());
+std::shared_ptr<InferenceModuleTorchHolder> LogMelFeature::getTorchModule()
+    const {
+  auto holder = std::make_shared<InferenceModuleTorchHolder>("LogMelFeature");
+  return holder;
 }
 
 } // namespace streaming

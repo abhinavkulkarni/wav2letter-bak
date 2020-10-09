@@ -21,5 +21,27 @@ void InferenceModule::setMemoryManager(
   memoryManager_ = memoryManager;
 }
 
+InferenceModuleTorchHolder::InferenceModuleTorchHolder() {
+  type = "";
+  inShape = outShape = shape::SHAPE_PASSTHROUGH;
+  inChannels = outChannels = -1;
+}
+InferenceModuleTorchHolder::InferenceModuleTorchHolder(std::string type)
+    : InferenceModuleTorchHolder() {
+  this->type = std::move(type);
+}
+InferenceModuleTorchHolder::InferenceModuleTorchHolder(
+    std::string type,
+    InferenceModuleTorchHolder::shape inShape,
+    int inChannels,
+    InferenceModuleTorchHolder::shape outShape,
+    int outChannels,
+    torch::nn::AnyModule anyModule)
+    : type(std::move(type)),
+      inShape(inShape),
+      inChannels(inChannels),
+      outShape(outShape),
+      outChannels(outChannels),
+      anyModule(std::move(anyModule)) {}
 } // namespace streaming
 } // namespace w2l

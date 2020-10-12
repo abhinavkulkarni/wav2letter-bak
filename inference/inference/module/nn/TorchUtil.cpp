@@ -2,7 +2,7 @@
 // Created by abhinav on 10/3/20.
 //
 
-#include "inference/module/nn/Util.h"
+#include "inference/module/nn/TorchUtil.h"
 
 #include <cereal/external/rapidjson/prettywriter.h>
 #include <cereal/external/rapidjson/stringbuffer.h>
@@ -86,23 +86,27 @@ void GroupNormImpl::pretty_print(std::ostream& stream) const {
 
 ResidualTorchImpl::ResidualTorchImpl(
     std::string name,
-    torch::nn::AnyModule anyModule)
-    : name(std::move(name)), anyModule(std::move(anyModule)) {}
+    torch::nn::AnyModule anyModule) {
+  if (name == "ReLU")
+    anyModule = register_module(name, anyModule.get<torch::nn::ReLU>());
+  else if (name == "Sequential")
+    anyModule = register_module(name, anyModule.get<StackSequential>());
+  else if (name == "Identity")
+    anyModule = register_module(name, anyModule.get<torch::nn::Identity>());
+  else if (name == "Linear")
+    anyModule = register_module(name, anyModule.get<torch::nn::Linear>());
+  else if (name == "Conv1d")
+    anyModule = register_module(name, anyModule.get<Conv1dUnequalPadding>());
+  else if (name == "Residual")
+    anyModule = register_module(name, anyModule.get<ResidualTorch>());
+  else if (name == "GroupNorm")
+    anyModule = register_module(name, anyModule.get<GroupNorm>());
+  this->name = std::move(name);
+  this->anyModule = std::move(anyModule);
+}
 
 void ResidualTorchImpl::pretty_print(std::ostream& stream) const {
-  stream << "Residual(";
-  if (auto* ptr = anyModule.ptr()->as<torch::nn::Conv1d>())
-    stream << *ptr << ")";
-  else if (auto* ptr = anyModule.ptr()->as<torch::nn::Linear>())
-    stream << *ptr << ")";
-  else if (auto* ptr = anyModule.ptr()->as<GroupNorm>())
-    stream << *ptr << ")";
-  else if (auto* ptr = anyModule.ptr()->as<StackSequential>())
-    stream << *ptr << ")";
-  else if (auto* ptr = anyModule.ptr()->as<ResidualTorch>())
-    stream << *ptr << ")";
-  else
-    stream << anyModule.ptr() << ")";
+  stream << "Residual";
 }
 
 torch::Tensor ResidualTorchImpl::forward(torch::Tensor x) {
@@ -138,6 +142,7 @@ void Conv1dUnequalPaddingImpl::pretty_print(std::ostream& stream) const {
 
 std::shared_ptr<InferenceModuleTorchHolder> getTorchModule(
     const std::shared_ptr<Sequential>& module) {
+  torch::NoGradGuard no_grad;
   auto holder = module->getTorchModule();
   std::map<std::string, int> counts;
 
@@ -191,6 +196,86 @@ std::shared_ptr<InferenceModuleTorchHolder> getTorchModule(
   return ret;
 }
 
+torch::nn::AnyModule getTorchModule_(rapidjson::Document& obj) {
+  auto name = std::string(obj["name"].GetString());
+  if (name == "ReLU")
+    return torch::nn::AnyModule(torch::nn::ReLU());
+  else if (name == "Identity")
+    return torch::nn::AnyModule(torch::nn::Identity());
+  else if (name == "Linear") {
+    auto inFeatures = obj["inFeatures"].GetInt(),
+         outFeatures = obj["outFeatures"].GetInt();
+    auto linear = torch::nn::Linear(inFeatures, outFeatures);
+    return torch::nn::AnyModule(linear);
+  } else if (name == "Conv1d") {
+    auto inChannels = obj["inChannels"].GetInt(),
+         outChannels = obj["outChannels"].GetInt(),
+         kernelSize = obj["kernelSize"].GetInt(),
+         groups = obj["groups"].GetInt(), stride = obj["stride"].GetInt(),
+         leftPadding = obj["leftPadding"].GetInt(),
+         rightPadding = obj["rightPadding"].GetInt();
+    auto conv1d = Conv1dUnequalPadding(
+        inChannels,
+        outChannels,
+        kernelSize,
+        stride,
+        leftPadding,
+        rightPadding,
+        groups);
+    return torch::nn::AnyModule(conv1d);
+  } else if (name == "GroupNorm") {
+    auto numChannels = obj["numChannels"].GetInt();
+    auto alpha = obj["alpha"].GetFloat(), beta = obj["beta"].GetFloat();
+    auto groupNorm = GroupNorm(1, numChannels, alpha, beta);
+    return torch::nn::AnyModule(groupNorm);
+  } else if (name == "Permute") {
+    std::vector<long> permutation;
+    for (auto&& item : obj["permutation"].GetArray())
+      permutation.push_back(item.GetInt());
+    auto permute = Permute(std::move(permutation));
+    return torch::nn::AnyModule(permute);
+  } else if (name == "Reshape") {
+    std::vector<long> shape;
+    for (auto&& item : obj["shape"].GetArray())
+      shape.push_back(item.GetInt());
+    auto reshape = Reshape(std::move(shape));
+    return torch::nn::AnyModule(reshape);
+  } else if (name == "Residual") {
+    rapidjson::Document moduleObj;
+    moduleObj.CopyFrom(obj["module"], obj.GetAllocator());
+    name = obj["module"].GetObject()["name"].GetString();
+    auto residual = ResidualTorch(name, getTorchModule_(moduleObj));
+    return torch::nn::AnyModule(residual);
+  } else {
+    auto sequential = getTorchModule(obj);
+    return torch::nn::AnyModule(sequential);
+  }
+}
+
+StackSequential getTorchModule(const rapidjson::Document& json) {
+  std::map<std::string, int> counts;
+
+  auto getName = [](const std::string& name,
+                    std::map<std::string, int>& counts) {
+    if (counts.count(name) == 0)
+      counts[name] = 0;
+    return name + "-" + std::to_string(counts[name]++);
+  };
+
+  StackSequential sequential;
+
+  for (auto& child : json["children"].GetArray()) {
+    rapidjson::Document obj;
+    obj.CopyFrom(child, obj.GetAllocator());
+    auto name = std::string(obj["name"].GetString());
+    name = getName(name, counts);
+    auto anyModule = getTorchModule_(obj);
+    sequential->push_back(name, anyModule);
+  }
+
+  return sequential;
+}
+
 rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule) {
   rapidjson::Document d(rapidjson::kObjectType);
   auto& allocator = d.GetAllocator();
@@ -201,7 +286,7 @@ rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule) {
   return d;
 }
 
-rapidjson::Document getJSON(
+rapidjson::Document getJSON_(
     const std::string& name,
     const torch::nn::AnyModule& anyModule,
     rapidjson::MemoryPoolAllocator<>& allocator) {
@@ -236,7 +321,7 @@ rapidjson::Document getJSON(
     auto* ptr = anyModule.ptr()->as<ResidualTorch>();
     d.AddMember(
         "module",
-        getJSON(ptr->name, ptr->anyModule, allocator).Move(),
+        getJSON_(ptr->name, ptr->anyModule, allocator).Move(),
         allocator);
   } else if (name == "Permute") {
     auto* ptr = anyModule.ptr()->as<Permute>();
@@ -261,7 +346,7 @@ rapidjson::Document getJSON(
     }
     int i = 0;
     for (auto& itr : *ptr)
-      children.PushBack(getJSON(names[i++], itr, allocator).Move(), allocator);
+      children.PushBack(getJSON_(names[i++], itr, allocator).Move(), allocator);
     d.AddMember("children", children, allocator);
   }
 
@@ -273,7 +358,7 @@ rapidjson::Document getJSON(const StackSequential& seqModule) {
   auto& allocator = d.GetAllocator();
 
   for (auto& m :
-       getJSON("Sequential", torch::nn::AnyModule(seqModule), allocator)
+       getJSON_("Sequential", torch::nn::AnyModule(seqModule), allocator)
            .GetObject())
     d.AddMember(m.name, m.value.Move(), allocator);
 

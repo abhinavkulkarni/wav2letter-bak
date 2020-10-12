@@ -8,8 +8,7 @@
 
 #include "inference/module/nn/backend/fbgemm/Conv1dFbGemm.h"
 
-#include <inference/module/nn/Util.h>
-#include <torch/csrc/api/include/torch/nn.h>
+#include <inference/module/nn/TorchUtil.h>
 #include <torch/csrc/api/include/torch/nn/options.h>
 #include <sstream>
 #include <stdexcept>

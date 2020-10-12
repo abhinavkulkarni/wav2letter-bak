@@ -97,5 +97,10 @@ std::shared_ptr<InferenceModuleTorchHolder> LogMelFeature::getTorchModule()
   return holder;
 }
 
+rapidjson::Document LogMelFeature::getJSON(
+    rapidjson::MemoryPoolAllocator<>& allocator) const {
+  return rapidjson::Document();
+}
+
 } // namespace streaming
 } // namespace w2l

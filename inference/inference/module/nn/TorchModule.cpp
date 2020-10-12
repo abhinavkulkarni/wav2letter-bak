@@ -4,7 +4,7 @@
 
 #include "inference/module/nn/TorchModule.h"
 #include "LayerNorm.h"
-#include "Util.h"
+#include "TorchUtil.h"
 
 #include <cassert>
 #include <utility>
@@ -28,7 +28,7 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
   assert(input);
   std::shared_ptr<ModuleProcessingState> output = input->next();
   assert(output);
-  assert(input->buffers().size() == 1);
+//  assert(input->buffers().size() == 1);
   std::shared_ptr<IOBuffer> inputBuf = input->buffer(0);
   assert(inputBuf);
 
@@ -44,7 +44,7 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
       input->buffer(0)->data<float>(), nFrames * holder->inChannels);
   x = holder->anyModule.forward(x).contiguous();
 
-  auto outSize = nFrames * holder->outChannels;
+  auto outSize = x.numel();
   outputBuf->ensure<float>(outSize);
   auto* outPtr = outputBuf->tail<float>();
   std::copy_n(x.data_ptr<float>(), outSize, outPtr);

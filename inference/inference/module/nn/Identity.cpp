@@ -8,6 +8,7 @@
 
 #include "inference/module/nn/Identity.h"
 
+#include <torch/csrc/api/include/torch/nn/modules/linear.h>
 #include <cassert>
 #include <sstream>
 #include <stdexcept>

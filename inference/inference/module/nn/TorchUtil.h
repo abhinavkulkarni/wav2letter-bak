@@ -110,5 +110,6 @@ rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule);
 
 rapidjson::Document getJSON(const StackSequential& seqModule);
 
+StackSequential getTorchModule(const rapidjson::Document& json);
 } // namespace streaming
 } // namespace w2l

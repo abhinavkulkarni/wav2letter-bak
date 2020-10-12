@@ -12,7 +12,7 @@
 #include "inference/common/IOBuffer.h"
 #include "inference/module/InferenceModule.h"
 #include "inference/module/ModuleParameter.h"
-#include "inference/module/nn/Util.h"
+#include "inference/module/nn/TorchUtil.h"
 
 namespace w2l {
 namespace streaming {

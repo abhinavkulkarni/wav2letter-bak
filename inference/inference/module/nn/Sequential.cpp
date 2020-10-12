@@ -7,7 +7,7 @@
  */
 
 #include "inference/module/nn/Sequential.h"
-#include "inference/module/nn/Util.h"
+#include "inference/module/nn/TorchUtil.h"
 
 #include <cassert>
 #include <sstream>
@@ -15,6 +15,7 @@
 
 namespace w2l {
 namespace streaming {
+
 Sequential::Sequential(std::vector<std::shared_ptr<InferenceModule>> modules)
     : modules_(modules) {}
 

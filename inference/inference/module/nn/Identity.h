@@ -17,8 +17,6 @@
 #include "inference/module/InferenceModule.h"
 #include "inference/module/ModuleParameter.h"
 
-#include <torch/torch.h>
-
 namespace w2l {
 namespace streaming {
 

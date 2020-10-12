@@ -7,9 +7,7 @@
  */
 
 #include "inference/module/nn/Residual.h"
-#include "LayerNorm.h"
-#include "Sequential.h"
-#include "Util.h"
+#include "TorchUtil.h"
 
 #include <cassert>
 #include <sstream>

@@ -80,5 +80,9 @@ build_example(simple_streaming_asr_example
   ${CMAKE_CURRENT_LIST_DIR}/SimpleStreamingASRExample.cpp)
 build_example(multithreaded_streaming_asr_example
   ${CMAKE_CURRENT_LIST_DIR}/MultithreadedStreamingASRExample.cpp)
+build_example(simple_streaming_torch_asr_example
+  ${CMAKE_CURRENT_LIST_DIR}/SimpleStreamingLibTorchASRExample.cpp)
+build_example(fbgemm_to_libtorch_example
+  ${CMAKE_CURRENT_LIST_DIR}/SerializationFbGemmToLibTorchExample.cpp)
 build_example(main
   ${CMAKE_CURRENT_LIST_DIR}/main.cpp)

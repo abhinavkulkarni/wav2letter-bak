@@ -10,7 +10,6 @@
 
 #include <cereal/access.hpp>
 #include <cereal/types/polymorphic.hpp>
-#include <torch/csrc/api/include/torch/nn/modules/normalization.h>
 #include <cstdio>
 #include <memory>
 

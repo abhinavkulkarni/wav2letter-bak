@@ -13,7 +13,7 @@
 #include <sstream>
 #include <stdexcept>
 
-#include "Util.h"
+#include "TorchUtil.h"
 #include "inference/common/Functions.h"
 
 namespace {

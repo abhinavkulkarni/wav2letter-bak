@@ -9,7 +9,7 @@ add_library(streaming_inference_modules_nn
         ${CMAKE_CURRENT_LIST_DIR}/Sequential.cpp
         ${CMAKE_CURRENT_LIST_DIR}/TDSBlock.cpp
         ${CMAKE_CURRENT_LIST_DIR}/TorchModule.cpp
-        ${CMAKE_CURRENT_LIST_DIR}/Util.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/TorchUtil.cpp
         )
 
 target_include_directories(

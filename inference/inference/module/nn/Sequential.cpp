@@ -12,16 +12,17 @@
 #include <cassert>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 
 namespace w2l {
 namespace streaming {
 
 Sequential::Sequential(std::vector<std::shared_ptr<InferenceModule>> modules)
-    : modules_(modules) {}
+    : modules_(std::move(modules)) {}
 
 Sequential::Sequential() {}
 
-void Sequential::add(std::shared_ptr<InferenceModule> module) {
+void Sequential::add(const std::shared_ptr<InferenceModule>& module) {
   modules_.push_back(module);
 }
 
@@ -87,6 +88,7 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
     return name + "-" + std::to_string(counts[name]++);
   };
 
+  bool flag2D;
   auto prevOutShape = InferenceModuleTorchHolder::shape::SHAPE_PASSTHROUGH;
   for (auto&& w2lModule : modules_) {
     auto holder = w2lModule->getTorchModule();
@@ -100,6 +102,7 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
         sequential->push_back(
             getName("Permute", counts), Permute(std::move(permutation)));
       }
+      flag2D = true;
       prevOutShape = holder->outShape;
     } else if (holder->inShape == InferenceModuleTorchHolder::shape::SHAPE_3D) {
       if (prevOutShape == InferenceModuleTorchHolder::shape::SHAPE_2D) {
@@ -110,6 +113,7 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
         sequential->push_back(
             getName("Permute", counts), Permute(std::move(permutation)));
       }
+      flag2D = false;
       prevOutShape = holder->outShape;
     }
 
@@ -125,9 +129,16 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
       int i = 0;
       for (const auto& itr : *seqModule)
         sequential->push_back(getName(names[i++], counts), itr);
-    } else {
+    } else if (holder->type == "GroupNorm") {
+      auto groupNorm = holder->anyModule.get<GroupNormBase>();
+      if (flag2D)
+        sequential->push_back(
+            getName("GroupNorm2D", counts), GroupNorm2D(std::move(groupNorm)));
+      else
+        sequential->push_back(
+            getName("GroupNorm3D", counts), GroupNorm3D(std::move(groupNorm)));
+    } else
       sequential->push_back(getName(holder->type, counts), holder->anyModule);
-    }
     if (ret->inChannels == -1) {
       ret->inShape = holder->inShape;
       ret->inChannels = holder->inChannels;

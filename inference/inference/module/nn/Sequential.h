@@ -29,7 +29,7 @@ class Sequential : public InferenceModule {
 
   virtual ~Sequential() override = default;
 
-  void add(std::shared_ptr<InferenceModule> module);
+  void add(const std::shared_ptr<InferenceModule>& module);
 
   std::shared_ptr<ModuleProcessingState> start(
       std::shared_ptr<ModuleProcessingState> input) override;

@@ -87,7 +87,7 @@ std::string LayerNorm::debugString() const {
 std::shared_ptr<InferenceModuleTorchHolder> LayerNorm::getTorchModule() const {
   auto holder = std::make_shared<InferenceModuleTorchHolder>("GroupNorm");
   holder->anyModule =
-      torch::nn::AnyModule(GroupNorm(1, featureSize_, alpha_, beta_).ptr());
+      torch::nn::AnyModule(GroupNormBase(1, featureSize_, alpha_, beta_));
   return holder;
 }
 

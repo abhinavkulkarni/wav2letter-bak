@@ -147,7 +147,7 @@ std::shared_ptr<ModuleProcessingState> Conv1dFbGemm::run(
   int nOutFrames = (nInFrames - kernelSize_) / stride_ + 1;
   int outSize = nOutFrames * outChannels_;
   int consumedSize = nOutFrames * stride_ * inChannels_;
-
+  
   outputBuf->ensure<float>(outSize);
   auto* outPtr = outputBuf->tail<float>();
   for (int i = 0; i < nOutFrames * groups_; ++i) {
@@ -187,8 +187,10 @@ std::shared_ptr<ModuleProcessingState> Conv1dFbGemm::run(
   return output;
 }
 
+
 std::shared_ptr<InferenceModuleTorchHolder> Conv1dFbGemm::getTorchModule()
     const {
+  at::set_default_dtype(c10::scalarTypeToTypeMeta(torch::kFloat16)); // default dtype to float16
   auto conv1d = Conv1dUnequalPadding(
       inChannels_,
       outChannels_,
@@ -199,27 +201,32 @@ std::shared_ptr<InferenceModuleTorchHolder> Conv1dFbGemm::getTorchModule()
       groups_);
 
   auto &weight = conv1d->weight, &bias = conv1d->bias;
-
+  // weight = torch::_cast_Half(weight); bias = torch::_cast_Half(bias); // float to float16
   auto fbgemmMat = packedWeights_->pmat();
   for (int j = 0; j < outChannels_ / groups_; j++)
     for (int k = 0; k < kernelSize_; k++)
       for (int i = 0; i < inChannels_ / groups_; i++) {
         auto item =
             fbgemmMat[packedWeights_->addr(k * inChannels_ / groups_ + i, j)];
-        auto v = fbgemm::cpu_half2float(item);
-        weight[j][i][k] = v;
+        auto v = fbgemm::cpu_half2float(item); 
+        at::Half w = v;
+        // weight[j][i][k] = v;
+        weight[j][i][k] = w;
       }
-
   for (int i = 1; i < groups_; i++)
     weight.slice(
         0, i * outChannels_ / groups_, (i + 1) * outChannels_ / groups_) =
         weight.slice(0, 0, outChannels_ / groups_);
 
+  auto bias_f = bias_->buffer_.data<float>();
+
   for (int i = 0; i < groups_; i++)
     std::copy_n(
-        bias_->buffer_.data<float>(),
+        // bias_->buffer_.data<float>(),
+        bias_f,
         outChannels_ / groups_,
-        bias.data_ptr<float>() + i * outChannels_ / groups_);
+        // bias.data_ptr<float>() + i * outChannels_ / groups_);
+        bias.data_ptr<at::Half>() + i * outChannels_ / groups_); // float16
 
   auto holder = std::make_shared<InferenceModuleTorchHolder>(
       "Conv1d",

@@ -28,15 +28,17 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
   assert(input);
   std::shared_ptr<ModuleProcessingState> output = input->next();
   assert(output);
-//  assert(input->buffers().size() == 1);
+  // assert(input->buffers().size() == 1);
   std::shared_ptr<IOBuffer> inputBuf = input->buffer(0);
   assert(inputBuf);
 
   int nFrames = inputBuf->size<float>() / holder->inChannels;
-  if (nFrames == 0) {
+  if (nFrames < 80)
+  {
     return output;
   }
   assert(output->buffers().size() == 1);
+
   std::shared_ptr<IOBuffer> outputBuf = output->buffer(0);
   assert(outputBuf);
 
@@ -45,6 +47,7 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
   x = holder->anyModule.forward(x).contiguous();
 
   auto outSize = x.numel();
+  auto nOutput_ = outSize / nFrames;
   outputBuf->ensure<float>(outSize);
   auto* outPtr = outputBuf->tail<float>();
   std::copy_n(x.data_ptr<float>(), outSize, outPtr);

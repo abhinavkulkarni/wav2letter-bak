@@ -162,9 +162,17 @@ int main(int argc, char* argv[]) {
     json.ParseStream(isw);
     amDefinitionFile.close();
     auto sequential = getTorchModule(json);
-
+    
+    sequential->to(torch::kFloat16); // wrap loading in float16
     torch::load(
         sequential, GetInputFileFullPath(FLAGS_acoustic_module_parameter_file));
+    // std::ofstream torchmodel = std::ofstream("/tmp/torcham.txt");
+    // for (auto& param: sequential->parameters())
+    // {
+    //     torchmodel << param.data();
+    // }
+    sequential->to(torch::kFloat); // wrap laoding in float16
+
     auto holder = std::make_shared<InferenceModuleTorchHolder>(
         "Sequential",
         static_cast<InferenceModuleTorchHolder::shape>(
@@ -176,7 +184,7 @@ int main(int argc, char* argv[]) {
         torch::nn::AnyModule(sequential));
     acousticModule = std::make_shared<TorchModule>(holder);
   }
-
+  
   // String both modeles togthers to a single DNN.
   auto dnnModule = std::make_shared<streaming::Sequential>();
   dnnModule->add(featureModule);

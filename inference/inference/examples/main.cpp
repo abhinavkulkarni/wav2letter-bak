@@ -13,6 +13,7 @@
 #include <torch/csrc/api/include/torch/all.h>
 #include "Util.h"
 
+
 using namespace w2l;
 using namespace w2l::streaming;
 using namespace torch;
@@ -21,7 +22,10 @@ using namespace rapidjson;
 std::shared_ptr<ModuleParameter> initialize_weights(int size) {
   std::vector<float> vec(size);
   for (int i = 0; i < size; i++)
-    vec[i] = i * (i % 2 ? 1 : -1);
+  {
+    vec[i] = (i * (i % 2 ? 1 : -1)) + (sqrt(i) / sqrt(i+1));
+  }
+  
   auto weights = std::make_shared<ModuleParameter>(
       streaming::DataType::FLOAT, vec.data(), vec.size());
   return weights;
@@ -94,42 +98,14 @@ std::shared_ptr<Sequential> createModule(int inChannels) {
   return dnnModule;
 }
 
-int main(int argc, char* argv[]) {
-  int T = 5;
-  int numChannels = 6;
-
-  // Create W2L Sequential InferenceModule
-  auto dnnModule = createModule(numChannels);
-  //  std::cout << dnnModule->debugString() << std::endl;
-
-  // Save the model
-  {
-    std::ofstream ofstream("/tmp/acoustic_model.bin");
-    cereal::BinaryOutputArchive ar(ofstream);
-    ar(dnnModule);
-    ofstream.close();
-  }
-
-  // Run module on sample data and print results
-  process(dnnModule, numChannels, numChannels, T);
-
+void saveLibtorchModule(std::shared_ptr<Sequential> inferenceModule)
+{
   // Get equivalent libtorch module
-  auto holder = getTorchModule(dnnModule);
+  auto holder = getTorchModule(inferenceModule);
   auto module = holder->anyModule.get<StackSequential>();
-  //  std::cout << module << std::endl;
+  // std::cout << module << std::endl;
 
-  // Run module on sample data and print results
-  {
-    module->eval();
-    auto x = torch::arange(T * numChannels).toType(kFloat);
-    x = module->forward(x).contiguous();
-    int N, C;
-    x.sizes().size() > 1 ? (N = x.size(-2), C = x.size(-1))
-                         : (N = T, C = numChannels);
-    print(N, C, x.data_ptr<float>());
-  }
-
-  // Convert module to JSON and save to the disk
+ // Convert module to JSON and save to the disk
   {
     auto json = getJSON(module);
     json.AddMember("inShape", holder->inShape, json.GetAllocator());
@@ -146,26 +122,85 @@ int main(int argc, char* argv[]) {
 
     torch::save(module, "/tmp/acoustic_model.pth");
     ofstream = std::ofstream("/tmp/acoustic_model_libtorch_1.txt");
-    ofstream << module;
+    auto params = module->parameters();
+    for (auto& param: params)
+    {
+      ofstream << param.data() << std::endl;
+    }
+    // ofstream << module;
     ofstream.close();
   }
+}
 
+StackSequential loadLibtorchModule(string baseFileNamePath)
+{
   // Get the module back
   StackSequential sequential;
   {
     Document json;
-    std::ifstream ifstream("/tmp/acoustic_model.json");
+    std::ifstream ifstream(baseFileNamePath + ".json");
     IStreamWrapper isw(ifstream);
     json.ParseStream(isw);
     ifstream.close();
     sequential = getTorchModule(json);
+    sequential->to(torch::kFloat16); // wrap loading in float16
+    torch::load(sequential, baseFileNamePath + ".pth");
+    sequential->to(torch::kFloat); // wrap laoding in float16
 
-    torch::load(sequential, "/tmp/acoustic_model.pth");
     std::ofstream ofstream =
         std::ofstream("/tmp/acoustic_model_libtorch_2.txt");
-    ofstream << sequential;
+    auto params = sequential->parameters();
+    for (auto& param: params)
+    {
+      ofstream << param.data() << std::endl;
+    }
+    // ofstream << sequential;
     ofstream.close();
   }
+  return sequential;
+}
+
+int main(int argc, char* argv[]) {
+  int T = 5;
+  int numChannels = 6;
+
+  // Create W2L Sequential InferenceModule
+  auto dnnModule = createModule(numChannels);
+  //  std::cout << dnnModule->debugString() << std::endl;
+
+  // Save the model
+  // {
+  //   std::ofstream ofstream("/tmp/acoustic_model.bin");
+  //   cereal::BinaryOutputArchive ar(ofstream);
+  //   ar(dnnModule);
+  //   ofstream.close();
+  // }
+
+  // Run module on sample data and print results
+  process(dnnModule, numChannels, numChannels, T);
+
+  // Run module on sample data and print results
+  {
+    // module->eval();
+    // auto x = torch::arange(T * numChannels).toType(kFloat16);
+    // module->to(torch::kFloat);
+    // for (auto &param: module->parameters())
+    // {
+    //   std::cout << param.data() << std::endl;
+    // }
+    // x = module->forward(x).contiguous();
+    // int N, C;
+    // x.sizes().size() > 1 ? (N = x.size(-2), C = x.size(-1))
+    //                      : (N = T, C = numChannels);
+    // print(N, C, x.data_ptr<float>());
+  }
+
+  // // save equivalent libTorch Module
+  // saveLibtorchModule(dnnModule);
+
+  // load saved libtorch module
+  auto torchModuleNamePath = string("/tmp/acoustic_model");
+  auto sequential = loadLibtorchModule(torchModuleNamePath);
 
   // Run module on sample data and print results
   {

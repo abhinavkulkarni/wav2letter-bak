@@ -106,18 +106,25 @@ std::shared_ptr<ModuleProcessingState> LinearFbGemm::run(
 
 std::shared_ptr<InferenceModuleTorchHolder> LinearFbGemm::getTorchModule()
     const {
+  at::set_default_dtype(c10::scalarTypeToTypeMeta(torch::kFloat16)); // default dtype to float16
   auto linear = torch::nn::Linear(nInput_, nOutput_);
 
   auto &weight = linear->weight, &bias = linear->bias;
+  // weight = torch::_cast_Half(weight); bias = torch::_cast_Half(bias); // float to float16
+
   auto fbgemmMat = packedWeights_->pmat();
   for (int i = 0; i < nInput_; i++)
     for (int j = 0; j < nOutput_; j++) {
       auto item = fbgemmMat[packedWeights_->addr(i, j)];
       auto v = fbgemm::cpu_half2float(item);
-      weight[j][i] = v;
+      at::Half w = v;
+      // weight[j][i] = v;
+      weight[j][i] = w;
     }
 
-  std::copy_n(bias_->buffer_.data<float>(), nOutput_, bias.data_ptr<float>());
+  auto bias_f = bias_->buffer_.data<float>();
+  // std::copy_n(bias_->buffer_.data<float>(), nOutput_, bias.data_ptr<float>());
+  std::copy_n(bias_f, nOutput_, bias.data_ptr<at::Half>()); // float to float16
   auto holder = std::make_shared<InferenceModuleTorchHolder>(
       "Linear",
       InferenceModuleTorchHolder::shape::SHAPE_2D,

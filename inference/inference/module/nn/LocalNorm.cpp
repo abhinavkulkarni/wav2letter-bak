@@ -114,9 +114,14 @@ std::string LocalNorm::debugString() const {
   return ss.str();
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> LocalNorm::getTorchModule() const {
-  auto holder = std::make_shared<InferenceModuleTorchHolder>("LocalNorm");
-  return holder;
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+LocalNorm::getTorchModule() const {
+  auto info = std::make_shared<InferenceModuleInfo>();
+  return {"LocalNorm", info, info, torch::nn::AnyModule()};
 }
 
 rapidjson::Document LocalNorm::getJSON(

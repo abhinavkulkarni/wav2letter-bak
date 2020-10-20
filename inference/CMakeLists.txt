@@ -28,7 +28,7 @@ set_property(
 )
 string(TOUPPER ${W2L_INFERENCE_BACKEND} W2L_INFERENCE_BACKEND_UPPER)
 add_definitions(-DUSE_${W2L_INFERENCE_BACKEND_UPPER})
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(wav2letter-inference)
@@ -154,7 +154,7 @@ set_target_properties(
         wav2letter-inference
         PROPERTIES
         LINKER_LANGUAGE CXX
-        CXX_STANDARD 14
+        CXX_STANDARD 17
 )
 
 target_include_directories(

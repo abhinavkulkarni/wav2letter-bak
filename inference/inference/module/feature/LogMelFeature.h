@@ -40,7 +40,12 @@ class LogMelFeature : public InferenceModule {
 
   std::string debugString() const override;
 
-  std::shared_ptr<InferenceModuleTorchHolder> getTorchModule() const override;
+  std::tuple<
+      std::string,
+      std::shared_ptr<InferenceModuleInfo>,
+      std::shared_ptr<InferenceModuleInfo>,
+      torch::nn::AnyModule>
+  getTorchModule() const override;
 
   rapidjson::Document getJSON(
       rapidjson::MemoryPoolAllocator<>& allocator) const override;

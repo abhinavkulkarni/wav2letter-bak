@@ -16,7 +16,6 @@
 
 namespace w2l {
 namespace streaming {
-
 Sequential::Sequential(std::vector<std::shared_ptr<InferenceModule>> modules)
     : modules_(std::move(modules)) {}
 
@@ -49,6 +48,7 @@ std::shared_ptr<ModuleProcessingState> Sequential::run(
 std::shared_ptr<ModuleProcessingState> Sequential::finish(
     std::shared_ptr<ModuleProcessingState> input) {
   std::shared_ptr<ModuleProcessingState> intermediateInput = input;
+
   for (auto& module : modules_) {
     assert(module);
     intermediateInput = module->finish(intermediateInput);
@@ -75,10 +75,15 @@ std::string Sequential::debugString() const {
   return ss.str();
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+Sequential::getTorchModule() const {
   StackSequential sequential;
 
-  auto ret = std::make_shared<InferenceModuleTorchHolder>("Sequential");
+  std::shared_ptr<InferenceModuleInfo> infoFirst, infoLast;
   std::map<std::string, int> counts;
 
   auto getName = [](const std::string& name,
@@ -89,13 +94,21 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
   };
 
   bool flag2D;
-  auto prevOutShape = InferenceModuleTorchHolder::shape::SHAPE_PASSTHROUGH;
+  auto prevOutShape = InferenceModuleInfo::shape::SHAPE_PASSTHROUGH;
   for (auto&& w2lModule : modules_) {
-    auto holder = w2lModule->getTorchModule();
+    auto tuple = w2lModule->getTorchModule();
+    const auto& [type, infoIn, infoOut, anyModule] = tuple;
 
-    if (holder->inShape == InferenceModuleTorchHolder::shape::SHAPE_2D) {
-      if (prevOutShape == InferenceModuleTorchHolder::shape::SHAPE_3D) {
-        std::vector<long> shape = {holder->inChannels, -1};
+    if (infoFirst == nullptr) {
+      infoFirst = infoIn;
+      infoLast = infoOut;
+    } else if (
+        infoOut->outShape != InferenceModuleInfo::shape::SHAPE_PASSTHROUGH)
+      infoLast = infoOut;
+
+    if (infoIn->inShape == InferenceModuleInfo::shape::SHAPE_2D) {
+      if (prevOutShape == InferenceModuleInfo::shape::SHAPE_3D) {
+        std::vector<long> shape = {infoIn->inChannels, -1};
         sequential->push_back(
             getName("Reshape", counts), Reshape(std::move(shape)));
         std::vector<long> permutation = {1, 0};
@@ -103,10 +116,10 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
             getName("Permute", counts), Permute(std::move(permutation)));
       }
       flag2D = true;
-      prevOutShape = holder->outShape;
-    } else if (holder->inShape == InferenceModuleTorchHolder::shape::SHAPE_3D) {
-      if (prevOutShape == InferenceModuleTorchHolder::shape::SHAPE_2D) {
-        std::vector<long> shape = {1, -1, holder->inChannels};
+      prevOutShape = infoOut->outShape;
+    } else if (infoIn->inShape == InferenceModuleInfo::shape::SHAPE_3D) {
+      if (prevOutShape == InferenceModuleInfo::shape::SHAPE_2D) {
+        std::vector<long> shape = {1, -1, infoIn->inChannels};
         sequential->push_back(
             getName("Reshape", counts), Reshape(std::move(shape)));
         std::vector<long> permutation = {0, 2, 1};
@@ -114,11 +127,11 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
             getName("Permute", counts), Permute(std::move(permutation)));
       }
       flag2D = false;
-      prevOutShape = holder->outShape;
+      prevOutShape = infoOut->outShape;
     }
 
-    if (holder->anyModule.ptr()->as<StackSequential>()) {
-      auto seqModule = holder->anyModule.get<StackSequential>();
+    if (anyModule.ptr()->as<StackSequential>()) {
+      auto seqModule = anyModule.get<StackSequential>();
       std::vector<std::string> names;
       for (auto&& item : seqModule->named_children()) {
         auto name = item.key();
@@ -129,8 +142,8 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
       int i = 0;
       for (const auto& itr : *seqModule)
         sequential->push_back(getName(names[i++], counts), itr);
-    } else if (holder->type == "GroupNorm") {
-      auto groupNorm = holder->anyModule.get<GroupNormBase>();
+    } else if (type == "GroupNorm") {
+      auto groupNorm = anyModule.get<GroupNormBase>();
       if (flag2D)
         sequential->push_back(
             getName("GroupNorm2D", counts), GroupNorm2D(std::move(groupNorm)));
@@ -138,19 +151,11 @@ std::shared_ptr<InferenceModuleTorchHolder> Sequential::getTorchModule() const {
         sequential->push_back(
             getName("GroupNorm3D", counts), GroupNorm3D(std::move(groupNorm)));
     } else
-      sequential->push_back(getName(holder->type, counts), holder->anyModule);
-    if (ret->inChannels == -1) {
-      ret->inShape = holder->inShape;
-      ret->inChannels = holder->inChannels;
-    }
-    if (holder->outChannels != -1) {
-      ret->outShape = holder->outShape;
-      ret->outChannels = holder->outChannels;
-    }
+      sequential->push_back(getName(type, counts), anyModule);
   }
 
-  ret->anyModule = torch::nn::AnyModule(sequential);
-  return ret;
+  auto anyModule = torch::nn::AnyModule(sequential);
+  return {"Sequential", infoFirst, infoLast, anyModule};
 }
 
 rapidjson::Document Sequential::getJSON(
@@ -165,6 +170,5 @@ rapidjson::Document Sequential::getJSON(
 
   return d;
 }
-
 } // namespace streaming
 } // namespace w2l

@@ -17,6 +17,7 @@
 #include "inference/module/nn/Residual.h"
 #include "inference/module/nn/Sequential.h"
 #include "inference/module/nn/TDSBlock.h"
+#include "inference/module/nn/TorchModule.h"
 
 // We need to include the backend for the Cereal serirlization implementation.
 #if W2L_INFERENCE_BACKEND == fbgemm

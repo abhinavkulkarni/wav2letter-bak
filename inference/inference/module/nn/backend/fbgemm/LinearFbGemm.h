@@ -42,7 +42,12 @@ class LinearFbGemm : public Linear {
   std::string debugString() const override;
   std::string debugStringWithContent() const override;
 
-  std::shared_ptr<InferenceModuleTorchHolder> getTorchModule() const override;
+  std::tuple<
+      std::string,
+      std::shared_ptr<InferenceModuleInfo>,
+      std::shared_ptr<InferenceModuleInfo>,
+      torch::nn::AnyModule>
+  getTorchModule() const override;
 
  protected:
   void init(std::shared_ptr<ModuleParameter> weights);

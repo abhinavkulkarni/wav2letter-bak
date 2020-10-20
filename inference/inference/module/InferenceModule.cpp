@@ -8,6 +8,8 @@
 
 #include "inference/module/InferenceModule.h"
 
+#include <utility>
+
 #include "inference/common/DefaultMemoryManager.h"
 
 namespace w2l {
@@ -21,27 +23,16 @@ void InferenceModule::setMemoryManager(
   memoryManager_ = memoryManager;
 }
 
-InferenceModuleTorchHolder::InferenceModuleTorchHolder() {
-  type = "";
-  inShape = outShape = shape::SHAPE_PASSTHROUGH;
-  inChannels = outChannels = -1;
-}
-InferenceModuleTorchHolder::InferenceModuleTorchHolder(std::string type)
-    : InferenceModuleTorchHolder() {
-  this->type = std::move(type);
-}
-InferenceModuleTorchHolder::InferenceModuleTorchHolder(
-    std::string type,
-    InferenceModuleTorchHolder::shape inShape,
+InferenceModuleInfo::InferenceModuleInfo(
+    InferenceModuleInfo::shape inShape,
     int inChannels,
-    InferenceModuleTorchHolder::shape outShape,
+    InferenceModuleInfo::shape outShape,
     int outChannels,
-    torch::nn::AnyModule anyModule)
-    : type(std::move(type)),
-      inShape(inShape),
+    std::map<std::string, int> kwargs)
+    : inShape(inShape),
       inChannels(inChannels),
       outShape(outShape),
       outChannels(outChannels),
-      anyModule(std::move(anyModule)) {}
+      kwargs(std::move(kwargs)) {}
 } // namespace streaming
 } // namespace w2l

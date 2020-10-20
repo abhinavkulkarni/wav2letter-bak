@@ -24,26 +24,20 @@
 namespace w2l {
 namespace streaming {
 
-struct InferenceModuleTorchHolder {
+struct InferenceModuleInfo {
  public:
   enum shape { SHAPE_2D, SHAPE_3D, SHAPE_PASSTHROUGH };
 
-  std::string type;
   shape inShape, outShape;
   int inChannels, outChannels;
-  torch::nn::AnyModule anyModule{};
+  std::map<std::string, int> kwargs;
 
-  InferenceModuleTorchHolder();
-
-  explicit InferenceModuleTorchHolder(std::string type);
-
-  InferenceModuleTorchHolder(
-      std::string type,
-      shape inShape,
-      int inChannels,
-      shape outShape,
-      int outChannels,
-      torch::nn::AnyModule anyModule);
+  explicit InferenceModuleInfo(
+      shape inShape = shape::SHAPE_PASSTHROUGH,
+      int inChannels = -1,
+      shape outShape = shape::SHAPE_PASSTHROUGH,
+      int outChannels = -1,
+      std::map<std::string, int> kwargs = {});
 };
 
 // Base class for all modules of the inference processing graph, including:
@@ -80,8 +74,12 @@ class InferenceModule {
 
   virtual std::string debugString() const = 0;
 
-  virtual std::shared_ptr<InferenceModuleTorchHolder> getTorchModule()
-      const = 0;
+  virtual std::tuple<
+      std::string,
+      std::shared_ptr<InferenceModuleInfo>,
+      std::shared_ptr<InferenceModuleInfo>,
+      torch::nn::AnyModule>
+  getTorchModule() const = 0;
 
   virtual rapidjson::Document getJSON(
       rapidjson::MemoryPoolAllocator<>& allocator) const = 0;

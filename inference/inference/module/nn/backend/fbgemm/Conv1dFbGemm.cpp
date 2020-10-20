@@ -100,6 +100,7 @@ std::shared_ptr<ModuleProcessingState> Conv1dFbGemm::finish(
     assert(inputBuf);
     inputBuf->writeZero<float>(rightPadding_ * inChannels_);
   }
+
   return run(input);
 }
 
@@ -187,8 +188,12 @@ std::shared_ptr<ModuleProcessingState> Conv1dFbGemm::run(
   return output;
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> Conv1dFbGemm::getTorchModule()
-    const {
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+Conv1dFbGemm::getTorchModule() const {
   auto conv1d = Conv1dUnequalPadding(
       inChannels_,
       outChannels_,
@@ -221,14 +226,15 @@ std::shared_ptr<InferenceModuleTorchHolder> Conv1dFbGemm::getTorchModule()
         outChannels_ / groups_,
         bias.data_ptr<float>() + i * outChannels_ / groups_);
 
-  auto holder = std::make_shared<InferenceModuleTorchHolder>(
-      "Conv1d",
-      InferenceModuleTorchHolder::shape::SHAPE_3D,
+  std::map<std::string, int> kwargs = {{"kernelSize", kernelSize_}};
+  auto info = std::make_shared<InferenceModuleInfo>(
+      InferenceModuleInfo::shape::SHAPE_3D,
       inChannels_,
-      InferenceModuleTorchHolder::shape::SHAPE_3D,
+      InferenceModuleInfo::shape::SHAPE_3D,
       outChannels_,
-      torch::nn::AnyModule(conv1d));
-  return holder;
+      kwargs);
+
+  return {"Conv1d", info, info, torch::nn::AnyModule(conv1d)};
 }
 
 std::shared_ptr<Conv1d> createConv1d(

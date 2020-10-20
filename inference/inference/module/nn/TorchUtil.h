@@ -8,8 +8,7 @@
 #include <inference/module/nn/Sequential.h>
 #include <torch/csrc/api/include/torch/nn.h>
 
-namespace w2l {
-namespace streaming {
+namespace w2l::streaming {
 struct StackSequentialImpl : torch::nn::SequentialImpl {
  public:
   StackSequentialImpl();
@@ -20,6 +19,8 @@ struct StackSequentialImpl : torch::nn::SequentialImpl {
   void pretty_print(std::ostream& stream) const override;
 
   torch::Tensor forward(torch::Tensor x);
+
+  void finish();
 };
 
 TORCH_MODULE(StackSequential);
@@ -121,17 +122,26 @@ struct Conv1dUnequalPaddingImpl : torch::nn::Conv1dImpl {
   torch::Tensor forward(torch::Tensor x);
 
   void pretty_print(std::ostream& stream) const override;
+
+  void finish();
+
+  torch::Tensor padding;
+
+ private:
+  bool flag;
 };
 
 TORCH_MODULE(Conv1dUnequalPadding);
 
-std::shared_ptr<InferenceModuleTorchHolder> getTorchModule(
-    const std::shared_ptr<Sequential>& module);
+std::tuple<
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    StackSequential>
+getTorchModule(const std::shared_ptr<Sequential>& module);
 
 rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule);
 
 rapidjson::Document getJSON(const StackSequential& seqModule);
 
 StackSequential getTorchModule(const rapidjson::Document& json);
-} // namespace streaming
 } // namespace w2l

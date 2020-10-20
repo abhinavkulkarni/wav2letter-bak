@@ -91,10 +91,14 @@ void LogMelFeature::init() {
   mfscFeaturizer_ = std::make_shared<Mfsc>(featParams_);
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> LogMelFeature::getTorchModule()
-    const {
-  auto holder = std::make_shared<InferenceModuleTorchHolder>("LogMelFeature");
-  return holder;
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+LogMelFeature::getTorchModule() const {
+  auto info = std::make_shared<InferenceModuleInfo>();
+  return {"LogMelFeature", info, info, torch::nn::AnyModule()};
 }
 
 rapidjson::Document LogMelFeature::getJSON(

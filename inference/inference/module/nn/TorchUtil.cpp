@@ -4,14 +4,12 @@
 
 #include "inference/module/nn/TorchUtil.h"
 
-#include <cereal/external/rapidjson/prettywriter.h>
 #include <cereal/external/rapidjson/stringbuffer.h>
 #include <utility>
 
 namespace F = torch::nn::functional;
 
-namespace w2l {
-namespace streaming {
+namespace w2l::streaming {
 
 torch::Tensor StackSequentialImpl::forward(torch::Tensor x) {
   return torch::nn::SequentialImpl::forward(x);
@@ -25,6 +23,12 @@ StackSequentialImpl::StackSequentialImpl() : torch::nn::SequentialImpl() {}
 
 void StackSequentialImpl::pretty_print(std::ostream& stream) const {
   SequentialImpl::pretty_print(stream);
+}
+
+void StackSequentialImpl::finish() {
+  for (auto& module : modules(false))
+    if (auto ptr = module->as<Conv1dUnequalPadding>())
+      ptr->finish();
 }
 
 PermuteImpl::PermuteImpl(std::vector<long>&& vec) {
@@ -141,7 +145,10 @@ void ResidualTorchImpl::pretty_print(std::ostream& stream) const {
 }
 
 torch::Tensor ResidualTorchImpl::forward(torch::Tensor x) {
-  return x + anyModule.forward(x);
+  auto y = anyModule.forward(x);
+  auto size = std::min(x.size(-1), y.size(-1));
+  auto z = x.slice(-1, 0, size) + y.slice(-1, 0, size);
+  return z;
 }
 
 Conv1dUnequalPaddingImpl::Conv1dUnequalPaddingImpl(
@@ -157,10 +164,24 @@ Conv1dUnequalPaddingImpl::Conv1dUnequalPaddingImpl(
               .stride(stride)
               .groups(groups)),
       leftPadding(leftPadding),
-      rightPadding(rightPadding) {}
+      rightPadding(rightPadding),
+      padding(torch::zeros({1, inChannels, leftPadding}).toType(torch::kFloat)),
+      flag(false) {}
 
 torch::Tensor Conv1dUnequalPaddingImpl::forward(torch::Tensor x) {
-  x = F::pad(x, F::PadFuncOptions({leftPadding, rightPadding}));
+  x = torch::cat({padding, x}, -1);
+  if (flag) {
+    auto finishPadding = torch::zeros({1, options.in_channels(), rightPadding})
+                             .toType(torch::kFloat);
+    x = torch::cat({x, finishPadding}, -1);
+  } else {
+    int kernelSize = options.kernel_size()->at(0);
+    int stride = options.stride()->at(0);
+    int nOutFrames = (x.size(-1) - kernelSize) / stride + 1;
+    int consumedFrames = nOutFrames * stride;
+    padding = x.slice(-1, consumedFrames);
+  }
+
   x = torch::nn::Conv1dImpl::forward(x);
   return x;
 }
@@ -171,10 +192,18 @@ void Conv1dUnequalPaddingImpl::pretty_print(std::ostream& stream) const {
     stream << "\b, padding=(" << leftPadding << ", " << rightPadding << "))";
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> getTorchModule(
-    const std::shared_ptr<Sequential>& module) {
+void Conv1dUnequalPaddingImpl::finish() {
+  flag = true;
+}
+
+std::tuple<
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    StackSequential>
+getTorchModule(const std::shared_ptr<Sequential>& module) {
   torch::NoGradGuard no_grad;
-  auto holder = module->getTorchModule();
+  auto tuple = module->getTorchModule();
+  const auto& [type, infoIn, infoOut, anyModule] = tuple;
   std::map<std::string, int> counts;
 
   auto getName = [](const std::string& name,
@@ -186,12 +215,12 @@ std::shared_ptr<InferenceModuleTorchHolder> getTorchModule(
 
   auto sequential = StackSequential();
 
-  if (holder->inShape == InferenceModuleTorchHolder::shape::SHAPE_2D) {
-    std::vector<long> shape = {-1, holder->inChannels};
+  if (infoIn->inShape == InferenceModuleInfo::shape::SHAPE_2D) {
+    std::vector<long> shape = {-1, infoOut->inChannels};
     sequential->push_back(
         getName("Reshape", counts), Reshape(std::move(shape)));
-  } else if (holder->inShape == InferenceModuleTorchHolder::shape::SHAPE_3D) {
-    std::vector<long> shape = {1, -1, holder->inChannels};
+  } else if (infoIn->inShape == InferenceModuleInfo::shape::SHAPE_3D) {
+    std::vector<long> shape = {1, -1, infoIn->inChannels};
     sequential->push_back(
         getName("Reshape", counts), Reshape(std::move(shape)));
     std::vector<long> permutation = {0, 2, 1};
@@ -199,32 +228,28 @@ std::shared_ptr<InferenceModuleTorchHolder> getTorchModule(
         getName("Permute", counts), Permute(std::move(permutation)));
   }
 
-  auto seqModule = holder->anyModule.get<StackSequential>();
-  std::vector<std::string> names;
-  for (auto&& item : seqModule->named_children()) {
-    auto name = item.key();
-    name = name.substr(0, name.find('-'));
-    names.push_back(name);
-  }
-  int i = 0;
-  for (auto itr = seqModule->begin(); itr != seqModule->end(); itr++)
-    sequential->push_back(getName(names[i++], counts), *itr);
+  if (anyModule.ptr()->as<StackSequential>()) {
+    auto seqModule = anyModule.get<StackSequential>();
+    std::vector<std::string> names;
+    for (auto&& item : seqModule->named_children()) {
+      auto name = item.key();
+      name = name.substr(0, name.find('-'));
+      names.push_back(name);
+    }
+    int i = 0;
+    for (auto itr = seqModule->begin(); itr != seqModule->end(); itr++)
+      sequential->push_back(getName(names[i++], counts), *itr);
+  } else
+    sequential->push_back(getName(type, counts), anyModule);
 
-  if (holder->outShape == InferenceModuleTorchHolder::shape::SHAPE_2D) {
-  } else if (holder->outShape == InferenceModuleTorchHolder::shape::SHAPE_3D) {
+  if (infoOut->outShape == InferenceModuleInfo::shape::SHAPE_2D) {
+  } else if (infoOut->outShape == InferenceModuleInfo::shape::SHAPE_3D) {
     std::vector<long> permutation = {0, 2, 1};
     sequential->push_back(
         getName("Permute", counts), Permute(std::move(permutation)));
   }
 
-  auto ret = std::make_shared<InferenceModuleTorchHolder>(
-      "Sequential",
-      holder->inShape,
-      holder->inChannels,
-      holder->outShape,
-      holder->outChannels,
-      torch::nn::AnyModule(sequential));
-  return ret;
+  return {infoIn, infoOut, sequential};
 }
 
 torch::nn::AnyModule getTorchModule_(rapidjson::Document& obj) {
@@ -405,5 +430,4 @@ rapidjson::Document getJSON(const StackSequential& seqModule) {
   return d;
 }
 
-} // namespace streaming
-} // namespace w2l
+} // namespace w2l::streaming

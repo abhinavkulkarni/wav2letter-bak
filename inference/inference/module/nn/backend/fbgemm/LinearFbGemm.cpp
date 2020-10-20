@@ -104,8 +104,12 @@ std::shared_ptr<ModuleProcessingState> LinearFbGemm::run(
   return output;
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> LinearFbGemm::getTorchModule()
-    const {
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+LinearFbGemm::getTorchModule() const {
   auto linear = torch::nn::Linear(nInput_, nOutput_);
 
   auto &weight = linear->weight, &bias = linear->bias;
@@ -118,14 +122,12 @@ std::shared_ptr<InferenceModuleTorchHolder> LinearFbGemm::getTorchModule()
     }
 
   std::copy_n(bias_->buffer_.data<float>(), nOutput_, bias.data_ptr<float>());
-  auto holder = std::make_shared<InferenceModuleTorchHolder>(
-      "Linear",
-      InferenceModuleTorchHolder::shape::SHAPE_2D,
+  auto info = std::make_shared<InferenceModuleInfo>(
+      InferenceModuleInfo::shape::SHAPE_2D,
       nInput_,
-      InferenceModuleTorchHolder::shape::SHAPE_2D,
-      nOutput_,
-      torch::nn::AnyModule(linear));
-  return holder;
+      InferenceModuleInfo::shape::SHAPE_2D,
+      nOutput_);
+  return {"Linear", info, info, torch::nn::AnyModule(linear)};
 }
 
 std::shared_ptr<Linear> createLinear(

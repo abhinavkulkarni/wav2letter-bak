@@ -117,20 +117,16 @@ void Residual::sum(
   }
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> Residual::getTorchModule() const {
-  auto holder = module_->getTorchModule();
-  auto anyModule =
-      torch::nn::AnyModule(ResidualTorch(holder->type, holder->anyModule));
-
-  auto ret = std::make_shared<InferenceModuleTorchHolder>(
-      "Residual",
-      holder->inShape,
-      holder->inChannels,
-      holder->outShape,
-      holder->outChannels,
-      anyModule);
-
-  return ret;
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+Residual::getTorchModule() const {
+  auto tuple = module_->getTorchModule();
+  const auto& [type, infoIn, infoOut, anyModule] = tuple;
+  auto residualModule = torch::nn::AnyModule(ResidualTorch(type, anyModule));
+  return {"Residual", infoIn, infoOut, residualModule};
 }
 rapidjson::Document Residual::getJSON(
     rapidjson::MemoryPoolAllocator<>& allocator) const {

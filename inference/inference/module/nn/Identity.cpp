@@ -46,10 +46,15 @@ std::string Identity::debugString() const {
   return ss.str();
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> Identity::getTorchModule() const {
-  auto holder = std::make_shared<InferenceModuleTorchHolder>("Identity");
-  holder->anyModule = torch::nn::AnyModule(torch::nn::Identity());
-  return holder;
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+Identity::getTorchModule() const {
+  auto info = std::make_shared<InferenceModuleInfo>();
+  auto anyModule = torch::nn::AnyModule(torch::nn::Identity());
+  return {"Identity", info, info, anyModule};
 }
 
 rapidjson::Document Identity::getJSON(

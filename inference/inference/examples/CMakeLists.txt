@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5.1)
 project(StreamingInferenceExamples)
 add_library(StreamingInferenceExamples INTERFACE)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(util_example
@@ -76,6 +76,8 @@ endfunction(build_example)
 
 build_example(interactive_streaming_asr_example
   ${CMAKE_CURRENT_LIST_DIR}/InteractiveStreamingASRExample.cpp)
+build_example(interactive_streaming_torch_asr_example
+  ${CMAKE_CURRENT_LIST_DIR}/InteractiveStreamingTorchASRExample.cpp)
 build_example(simple_streaming_asr_example
   ${CMAKE_CURRENT_LIST_DIR}/SimpleStreamingASRExample.cpp)
 build_example(multithreaded_streaming_asr_example
@@ -84,5 +86,5 @@ build_example(simple_streaming_torch_asr_example
   ${CMAKE_CURRENT_LIST_DIR}/SimpleStreamingLibTorchASRExample.cpp)
 build_example(fbgemm_to_libtorch_example
   ${CMAKE_CURRENT_LIST_DIR}/SerializationFbGemmToLibTorchExample.cpp)
-build_example(main
-  ${CMAKE_CURRENT_LIST_DIR}/main.cpp)
+build_example(example
+  ${CMAKE_CURRENT_LIST_DIR}/example.cpp)

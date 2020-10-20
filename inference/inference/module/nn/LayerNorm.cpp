@@ -84,11 +84,16 @@ std::string LayerNorm::debugString() const {
   return ss.str();
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> LayerNorm::getTorchModule() const {
-  auto holder = std::make_shared<InferenceModuleTorchHolder>("GroupNorm");
-  holder->anyModule =
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+LayerNorm::getTorchModule() const {
+  auto info = std::make_shared<InferenceModuleInfo>();
+  auto anyModule =
       torch::nn::AnyModule(GroupNormBase(1, featureSize_, alpha_, beta_));
-  return holder;
+  return {"GroupNorm", info, info, anyModule};
 }
 
 rapidjson::Document LayerNorm::getJSON(

@@ -67,14 +67,18 @@ int main(int argc, char* argv[]) {
     amFile.close();
   }
 
-  // Get equivalent libtorch module
-  StackSequential sequential;
-  std::shared_ptr<InferenceModuleTorchHolder> holder;
+  // Get equivalent LibTorch module
   torch::NoGradGuard no_grad;
+
+  StackSequential sequential;
+  std::shared_ptr<InferenceModuleInfo> infoIn, infoOut;
   {
     TimeElapsedReporter acousticLoadingElapsed("FBGEMM to LibTorch conversion");
-    holder = getTorchModule(acousticModule);
-    sequential = holder->anyModule.get<StackSequential>();
+    auto tuple = getTorchModule(acousticModule);
+    auto& [infoIn_, infoOut_, sequential_] = tuple;
+    infoIn = infoIn_;
+    infoOut = infoOut_;
+    sequential = std::move(sequential_);
   }
 
   // Get module definition
@@ -82,10 +86,22 @@ int main(int argc, char* argv[]) {
   // Save model definition and parameters
   {
     TimeElapsedReporter acousticLoadingElapsed("acoustic model file saving");
-    json.AddMember("inShape", holder->inShape, json.GetAllocator());
-    json.AddMember("inChannels", holder->inChannels, json.GetAllocator());
-    json.AddMember("outShape", holder->outShape, json.GetAllocator());
-    json.AddMember("outChannels", holder->outChannels, json.GetAllocator());
+
+    for (auto const& info : {infoIn, infoOut}) {
+      rapidjson::Document obj(rapidjson::kObjectType);
+      obj.AddMember("inShape", info->inShape, json.GetAllocator());
+      obj.AddMember("inChannels", info->inChannels, json.GetAllocator());
+      if (not info->kwargs.empty()) {
+        obj.AddMember(
+            "kernelSize", info->kwargs["kernelSize"], json.GetAllocator());
+      }
+      obj.AddMember("outShape", info->outShape, json.GetAllocator());
+      obj.AddMember("outChannels", info->outChannels, json.GetAllocator());
+
+      auto name = (info == infoIn ? "inInfo" : "outInfo");
+      rapidjson::Value key(name, json.GetAllocator());
+      json.AddMember(key, obj.Move(), json.GetAllocator());
+    }
     rapidjson::StringBuffer buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
     json.Accept(writer);
@@ -98,6 +114,7 @@ int main(int argc, char* argv[]) {
     std::string str(buffer.GetString(), buffer.GetSize());
     amJsonFile << str;
     amJsonFile.close();
+
     torch::save(
         sequential,
         GetFullPath(

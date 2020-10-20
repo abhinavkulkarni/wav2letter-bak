@@ -36,7 +36,7 @@ std::shared_ptr<ModuleProcessingState> Relu::start(
 std::shared_ptr<ModuleProcessingState> Relu::run(
     std::shared_ptr<ModuleProcessingState> input) {
   assert(input);
-  //  assert(input->buffers().size() == 1);
+  assert(input->buffers().size() == 1);
   std::shared_ptr<IOBuffer> inputBuf = input->buffer(0);
   assert(inputBuf);
 
@@ -68,10 +68,15 @@ std::string Relu::debugString() const {
   return ss.str();
 }
 
-std::shared_ptr<InferenceModuleTorchHolder> Relu::getTorchModule() const {
-  auto holder = std::make_shared<InferenceModuleTorchHolder>("ReLU");
-  holder->anyModule = torch::nn::AnyModule(torch::nn::ReLU());
-  return holder;
+std::tuple<
+    std::string,
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    torch::nn::AnyModule>
+Relu::getTorchModule() const {
+  auto info = std::make_shared<InferenceModuleInfo>();
+  auto anyModule = torch::nn::AnyModule(torch::nn::ReLU());
+  return {"ReLU", info, info, anyModule};
 }
 
 rapidjson::Document Relu::getJSON(

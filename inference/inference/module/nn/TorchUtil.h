@@ -102,6 +102,9 @@ struct ResidualTorchImpl : torch::nn::Module {
   void pretty_print(std::ostream& stream) const override;
 
   torch::Tensor forward(torch::Tensor x);
+
+ private:
+  torch::Tensor padding;
 };
 
 TORCH_MODULE(ResidualTorch);
@@ -125,10 +128,8 @@ struct Conv1dUnequalPaddingImpl : torch::nn::Conv1dImpl {
 
   void finish();
 
-  torch::Tensor padding;
-
  private:
-  bool flag;
+  torch::Tensor leftPaddingTensor, rightPaddingTensor;
 };
 
 TORCH_MODULE(Conv1dUnequalPadding);
@@ -144,4 +145,4 @@ rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule);
 rapidjson::Document getJSON(const StackSequential& seqModule);
 
 StackSequential getTorchModule(const rapidjson::Document& json);
-} // namespace w2l
+} // namespace w2l::streaming

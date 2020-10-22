@@ -215,16 +215,10 @@ Conv1dFbGemm::getTorchModule() const {
         weight[j][i][k] = v;
       }
 
-  for (int i = 1; i < groups_; i++)
-    weight.slice(
-        0, i * outChannels_ / groups_, (i + 1) * outChannels_ / groups_) =
-        weight.slice(0, 0, outChannels_ / groups_);
-
-  for (int i = 0; i < groups_; i++)
-    std::copy_n(
-        bias_->buffer_.data<float>(),
-        outChannels_ / groups_,
-        bias.data_ptr<float>() + i * outChannels_ / groups_);
+  std::copy_n(
+      bias_->buffer_.data<float>(),
+      outChannels_ / groups_,
+      bias.data_ptr<float>());
 
   std::map<std::string, int> kwargs = {{"kernelSize", kernelSize_}};
   auto info = std::make_shared<InferenceModuleInfo>(

@@ -111,7 +111,7 @@ TORCH_MODULE(ResidualTorch);
 
 struct Conv1dUnequalPaddingImpl : torch::nn::Conv1dImpl {
  public:
-  int leftPadding, rightPadding;
+  int leftPadding, rightPadding, groups;
 
   Conv1dUnequalPaddingImpl(
       int inChannels,

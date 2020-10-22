@@ -184,16 +184,6 @@ int main(int argc, char* argv[]) {
         infoOut = info;
     }
 
-    int i = 0;
-    StackSequential sequential1;
-    for (const auto& module : *sequential) {
-      sequential1->push_back(module);
-      if (i++ == 7)
-        break;
-    }
-    sequential = sequential1;
-    std::cout << sequential << std::endl;
-
     acousticModule = std::make_shared<TorchModule>(infoIn, infoOut, sequential);
   }
 

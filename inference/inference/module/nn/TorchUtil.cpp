@@ -164,16 +164,19 @@ Conv1dUnequalPaddingImpl::Conv1dUnequalPaddingImpl(
     int leftPadding,
     int rightPadding,
     int groups)
-    : torch::nn::Conv1dImpl(
-          torch::nn::Conv1dOptions(inChannels, outChannels, kernelSize)
-              .stride(stride)
-              .groups(groups)),
+    : torch::nn::Conv1dImpl(torch::nn::Conv1dOptions(
+                                inChannels / groups,
+                                outChannels / groups,
+                                kernelSize)
+                                .stride(stride)
+                                .groups(1)),
       leftPadding(leftPadding),
       rightPadding(rightPadding),
       leftPaddingTensor(
           torch::zeros({1, inChannels, leftPadding}).toType(torch::kFloat)),
       rightPaddingTensor(
-          torch::zeros({1, inChannels, 0}).toType(torch::kFloat)) {}
+          torch::zeros({1, inChannels, 0}).toType(torch::kFloat)),
+      groups(groups) {}
 
 torch::Tensor Conv1dUnequalPaddingImpl::forward(torch::Tensor x) {
   x = torch::cat({leftPaddingTensor, x, rightPaddingTensor}, -1);
@@ -181,9 +184,17 @@ torch::Tensor Conv1dUnequalPaddingImpl::forward(torch::Tensor x) {
   int stride = options.stride()->at(0);
   int nOutFrames = (x.size(-1) - kernelSize) / stride + 1;
   int consumedFrames = nOutFrames * stride;
+  int inChannels = options.in_channels();
   leftPaddingTensor = x.slice(-1, consumedFrames);
-  x = torch::nn::Conv1dImpl::forward(x);
-  return x;
+
+  auto y = torch::empty({1, 0, nOutFrames});
+  for (int i = 0; i < groups; i++) {
+    auto x_ = torch::nn::Conv1dImpl::forward(
+        x.slice(1, i * inChannels, (i + 1) * inChannels));
+    y = torch::cat({y, x_}, 1);
+  }
+
+  return y;
 }
 
 void Conv1dUnequalPaddingImpl::pretty_print(std::ostream& stream) const {
@@ -193,8 +204,9 @@ void Conv1dUnequalPaddingImpl::pretty_print(std::ostream& stream) const {
 }
 
 void Conv1dUnequalPaddingImpl::finish() {
-  rightPaddingTensor = torch::zeros({1, options.in_channels(), rightPadding})
-                           .toType(torch::kFloat);
+  rightPaddingTensor =
+      torch::zeros({1, options.in_channels() * groups, rightPadding})
+          .toType(torch::kFloat);
 }
 
 std::tuple<
@@ -364,10 +376,11 @@ rapidjson::Document getJSON_(
   } else if (name == "Conv1d") {
     auto* ptr = anyModule.ptr()->as<Conv1dUnequalPadding>();
     auto& options = ptr->options;
-    d.AddMember("inChannels", options.in_channels(), allocator);
-    d.AddMember("outChannels", options.out_channels(), allocator);
+    int groups = ptr->groups;
+    d.AddMember("inChannels", options.in_channels() * groups, allocator);
+    d.AddMember("outChannels", options.out_channels() * groups, allocator);
     d.AddMember("kernelSize", options.kernel_size()->at(0), allocator);
-    d.AddMember("groups", options.groups(), allocator);
+    d.AddMember("groups", groups, allocator);
     d.AddMember("stride", options.stride()->at(0), allocator);
     d.AddMember("leftPadding", ptr->leftPadding, allocator);
     d.AddMember("rightPadding", ptr->rightPadding, allocator);

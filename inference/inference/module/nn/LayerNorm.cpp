@@ -91,8 +91,7 @@ std::tuple<
     torch::nn::AnyModule>
 LayerNorm::getTorchModule() const {
   auto info = std::make_shared<InferenceModuleInfo>();
-  auto anyModule =
-      torch::nn::AnyModule(GroupNormBase(1, featureSize_, alpha_, beta_));
+  auto anyModule = torch::nn::AnyModule(W2LGroupNorm(alpha_, beta_));
   return {"GroupNorm", info, info, anyModule};
 }
 
@@ -101,7 +100,6 @@ rapidjson::Document LayerNorm::getJSON(
   rapidjson::Document d(rapidjson::kObjectType);
 
   d.AddMember("name", "GroupNorm", allocator);
-  d.AddMember("numChannels", featureSize_, allocator);
   d.AddMember("alpha", alpha_, allocator);
   d.AddMember("beta", beta_, allocator);
 

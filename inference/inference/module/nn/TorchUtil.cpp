@@ -59,62 +59,21 @@ void ReshapeImpl::pretty_print(std::ostream& stream) const {
   stream << "Reshape(" << sizes << ")";
 }
 
-GroupNormBaseImpl::GroupNormBaseImpl(
-    int numGroups,
-    int numChannels,
-    float alpha,
-    float beta)
-    : torch::nn::GroupNormImpl(numGroups, numChannels),
-      alpha(alpha),
-      beta(beta) {
-  auto &weight = torch::nn::GroupNormImpl::weight,
-       &bias = torch::nn::GroupNormImpl::bias;
-  weight = weight * alpha;
-  bias = bias + beta;
+W2LGroupNormImpl::W2LGroupNormImpl(float alpha, float beta)
+    : alpha(register_parameter("alpha", torch::tensor(alpha))),
+      beta(register_parameter("beta", torch::tensor(beta))) {}
+
+void W2LGroupNormImpl::pretty_print(std::ostream& stream) const {
+  stream << "W2LGroupNorm2D("
+         << "alpha=" << alpha.item().toFloat()
+         << ", beta=" << beta.item().toFloat() << ")";
 }
 
-GroupNormBaseImpl::GroupNormBaseImpl(GroupNormBaseImpl&& other) noexcept
-    : alpha(other.alpha),
-      beta(other.beta),
-      torch::nn::GroupNormImpl(
-          other.options.num_groups(),
-          other.options.num_channels()) {
-  torch::nn::GroupNormImpl::weight = std::move(other.weight);
-  torch::nn::GroupNormImpl::bias = std::move(other.bias);
-}
-
-torch::Tensor GroupNormBaseImpl::forward(torch::Tensor x) {
-  x = torch::nn::GroupNormImpl::forward(x);
+torch::Tensor W2LGroupNormImpl::forward(torch::Tensor x) {
+  auto mean = x.mean(1, true);
+  auto std = x.std(1, false, true);
+  x = (x - mean) / std * alpha + beta;
   return x;
-}
-
-GroupNorm2DImpl::GroupNorm2DImpl(GroupNormBase&& groupNormBase)
-    : GroupNormBaseImpl(std::move(*groupNormBase.get())) {}
-
-void GroupNorm2DImpl::pretty_print(std::ostream& stream) const {
-  auto& options = torch::nn::GroupNormImpl::options;
-  stream << "GroupNorm2D(" << options.num_groups() << ", "
-         << options.num_channels() << ", alpha=" << alpha << ", beta=" << beta
-         << ")";
-}
-
-torch::Tensor GroupNorm2DImpl::forward(torch::Tensor x) {
-  return torch::nn::GroupNormImpl::forward(x.unsqueeze(-1)).squeeze(-1);
-}
-
-GroupNorm3DImpl::GroupNorm3DImpl(GroupNormBase&& groupNormBase)
-    : GroupNormBaseImpl(std::move(*groupNormBase.get())) {}
-
-void GroupNorm3DImpl::pretty_print(std::ostream& stream) const {
-  auto& options = torch::nn::GroupNormImpl::options;
-  stream << "GroupNorm3D(" << options.num_groups() << ", "
-         << options.num_channels() << ", alpha=" << alpha << ", beta=" << beta
-         << ")";
-}
-
-torch::Tensor GroupNorm3DImpl::forward(torch::Tensor x) {
-  return torch::nn::GroupNormImpl::forward(x.permute({2, 1, 0}))
-      .permute({2, 1, 0});
 }
 
 ResidualTorchImpl::ResidualTorchImpl(
@@ -132,10 +91,8 @@ ResidualTorchImpl::ResidualTorchImpl(
     anyModule = register_module(name, anyModule.get<Conv1dUnequalPadding>());
   else if (name == "Residual")
     anyModule = register_module(name, anyModule.get<ResidualTorch>());
-  else if (name == "GroupNorm2D")
-    anyModule = register_module(name, anyModule.get<GroupNorm2D>());
-  else if (name == "GroupNorm3D")
-    anyModule = register_module(name, anyModule.get<GroupNorm3D>());
+  else if (name == "GroupNorm")
+    anyModule = register_module(name, anyModule.get<W2LGroupNorm>());
   this->name = std::move(name);
   this->anyModule = std::move(anyModule);
   padding = torch::zeros(0);
@@ -292,14 +249,9 @@ torch::nn::AnyModule getTorchModule_(rapidjson::Document& obj) {
         rightPadding,
         groups);
     return torch::nn::AnyModule(conv1d);
-  } else if (name == "GroupNorm2D" or name == "GroupNorm3D") {
-    auto numChannels = obj["numChannels"].GetInt();
+  } else if (name == "GroupNorm") {
     auto alpha = obj["alpha"].GetFloat(), beta = obj["beta"].GetFloat();
-    auto groupNorm = GroupNormBase(1, numChannels, alpha, beta);
-    if (name == "GroupNorm2D")
-      return torch::nn::AnyModule(GroupNorm2D(std::move(groupNorm)));
-    else
-      return torch::nn::AnyModule(GroupNorm3D(std::move(groupNorm)));
+    return torch::nn::AnyModule(W2LGroupNorm(alpha, beta));
   } else if (name == "Permute") {
     std::vector<long> permutation;
     for (auto&& item : obj["permutation"].GetArray())
@@ -384,18 +336,10 @@ rapidjson::Document getJSON_(
     d.AddMember("stride", options.stride()->at(0), allocator);
     d.AddMember("leftPadding", ptr->leftPadding, allocator);
     d.AddMember("rightPadding", ptr->rightPadding, allocator);
-  } else if (name == "GroupNorm2D") {
-    auto* ptr = anyModule.ptr()->as<GroupNorm2D>();
-    auto& options = ptr->options;
-    d.AddMember("numChannels", options.num_channels(), allocator);
-    d.AddMember("alpha", ptr->alpha, allocator);
-    d.AddMember("beta", ptr->beta, allocator);
-  } else if (name == "GroupNorm3D") {
-    auto* ptr = anyModule.ptr()->as<GroupNorm3D>();
-    auto& options = ptr->options;
-    d.AddMember("numChannels", options.num_channels(), allocator);
-    d.AddMember("alpha", ptr->alpha, allocator);
-    d.AddMember("beta", ptr->beta, allocator);
+  } else if (name == "GroupNorm") {
+    auto* ptr = anyModule.ptr()->as<W2LGroupNorm>();
+    d.AddMember("alpha", ptr->alpha.item().toFloat(), allocator);
+    d.AddMember("beta", ptr->beta.item().toFloat(), allocator);
   } else if (name == "Residual") {
     auto* ptr = anyModule.ptr()->as<ResidualTorch>();
     d.AddMember(

@@ -23,51 +23,6 @@
 using namespace w2l;
 using namespace w2l::streaming;
 
-std::shared_ptr<ModuleParameter> getWeights(int size) {
-  auto x = torch::randn(size);
-  x = x * 0;
-  auto* buf = x.data_ptr<float>();
-  auto weights = std::make_shared<ModuleParameter>(DataType::FLOAT, buf, size);
-  return weights;
-}
-
-std::shared_ptr<Sequential> getAcousticModule() {
-  auto dnnModule = std::make_shared<Sequential>();
-
-  int outChannels = 4;
-
-  auto weights = getWeights(4 * outChannels * 9),
-       bias = getWeights(outChannels);
-  auto conv1dModule =
-      createConv1d(4, outChannels, 9, 1, {7, 1}, 1, weights, bias);
-
-  auto residualModule =
-      std::make_shared<Residual>(conv1dModule, DataType::FLOAT);
-  dnnModule->add(residualModule);
-
-  auto [infoIn, infoOut, sequential] = getTorchModule(dnnModule);
-
-  auto input = std::make_shared<ModuleProcessingState>(1);
-  auto output = dnnModule->start(input);
-
-  int T = 2;
-  for (int iter = 0; iter < 3; iter++) {
-    auto start = iter * T * 4, end = (iter + 1) * T * 4;
-    auto x = torch::arange(start, end).toType(torch::kFloat);
-    std::cout << "Input=\t" << x.reshape({1, -1}) << std::endl;
-    input->buffer(0)->write(x.data_ptr<float>(), x.numel());
-    output = dnnModule->run(input);
-    auto nOutFrames = output->buffer(0)->size<float>() / 4;
-    auto y = torch::from_blob(output->buffer(0)->data<float>(), nOutFrames * 4);
-    output->buffer(0)->consume<float>(nOutFrames * 4);
-    std::cout << "Output=\t" << y.reshape({1, -1}) << std::endl;
-    x = sequential->forward(x).contiguous();
-    std::cout << "Output=\t" << x.reshape({1, -1}) << std::endl;
-  }
-
-  return dnnModule;
-}
-
 void audioStreamToWordsStream(
     std::istream& inputAudioStream,
     std::ostream& outputWordsStream,
@@ -152,7 +107,7 @@ void compare() {
   {
     TimeElapsedReporter acousticLoadingElapsed("acoustic model output to file");
     std::ifstream audioFile(
-        "/home/abhinav/Downloads/output-1s.wav", std::ios::binary);
+        "/home/abhinav/audio/cnbc-2s.wav", std::ios::binary);
     std::ofstream ofstream("./acoustic_model_fbgemm.txt", std::ios::out);
     audioStreamToWordsStream(audioFile, ofstream, dnnModuleFbGemm);
   }
@@ -203,6 +158,14 @@ void compare() {
     }
     torchAcousticModule =
         std::make_shared<TorchModule>(infoIn, infoOut, sequential, 57);
+
+    auto x = torch::arange(57 * 80).toType(torch::kFloat);
+    x = (x - x.mean()) / x.std();
+    x = sequential->forward(x).contiguous();
+    x = x.reshape({-1, 1});
+    std::ofstream ofstream("/tmp/output-cpp.txt", std::ios::out);
+    ofstream << x << std::endl;
+    ofstream.close();
   }
   auto dnnModuleLibTorch = std::make_shared<Sequential>();
   dnnModuleLibTorch->add(featureModule2);
@@ -212,13 +175,12 @@ void compare() {
     TimeElapsedReporter acousticLoadingElapsed(
         "libtorch acoustic model output to file");
     std::ifstream audioFile(
-        "/home/abhinav/Downloads/output-1s.wav", std::ios::binary);
+        "/home/abhinav/audio/cnbc-2s.wav", std::ios::binary);
     std::ofstream ofstream("./acoustic_model_libtorch.txt", std::ios::out);
     audioStreamToWordsStream(audioFile, ofstream, dnnModuleLibTorch);
   }
 }
 
 int main(int argc, char* argv[]) {
-  //  getAcousticModule();
   compare();
 }

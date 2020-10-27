@@ -93,7 +93,6 @@ Sequential::getTorchModule() const {
     return name + "-" + std::to_string(counts[name]++);
   };
 
-  bool flag2D;
   auto prevOutShape = InferenceModuleInfo::shape::SHAPE_PASSTHROUGH;
   for (auto&& w2lModule : modules_) {
     auto tuple = w2lModule->getTorchModule();
@@ -115,7 +114,6 @@ Sequential::getTorchModule() const {
         sequential->push_back(
             getName("Permute", counts), Permute(std::move(permutation)));
       }
-      flag2D = true;
       prevOutShape = infoOut->outShape;
     } else if (infoIn->inShape == InferenceModuleInfo::shape::SHAPE_3D) {
       if (prevOutShape == InferenceModuleInfo::shape::SHAPE_2D) {
@@ -126,7 +124,6 @@ Sequential::getTorchModule() const {
         sequential->push_back(
             getName("Permute", counts), Permute(std::move(permutation)));
       }
-      flag2D = false;
       prevOutShape = infoOut->outShape;
     }
 
@@ -142,14 +139,6 @@ Sequential::getTorchModule() const {
       int i = 0;
       for (const auto& itr : *seqModule)
         sequential->push_back(getName(names[i++], counts), itr);
-    } else if (type == "GroupNorm") {
-      auto groupNorm = anyModule.get<GroupNormBase>();
-      if (flag2D)
-        sequential->push_back(
-            getName("GroupNorm2D", counts), GroupNorm2D(std::move(groupNorm)));
-      else
-        sequential->push_back(
-            getName("GroupNorm3D", counts), GroupNorm3D(std::move(groupNorm)));
     } else
       sequential->push_back(getName(type, counts), anyModule);
   }

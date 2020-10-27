@@ -53,44 +53,18 @@ struct ReshapeImpl : torch::nn::Module {
 
 TORCH_MODULE(Reshape);
 
-struct GroupNormBaseImpl : torch::nn::GroupNormImpl {
+struct W2LGroupNormImpl : torch::nn::Module {
  public:
-  float alpha, beta;
-
-  explicit GroupNormBaseImpl(
-      int numGroups,
-      int numChannels,
-      float alpha,
-      float beta);
-
-  GroupNormBaseImpl(GroupNormBaseImpl&& other) noexcept;
-
-  torch::Tensor forward(torch::Tensor x);
-};
-
-TORCH_MODULE(GroupNormBase);
-
-struct GroupNorm2DImpl : GroupNormBaseImpl {
- public:
-  explicit GroupNorm2DImpl(GroupNormBase&& groupNorm);
+  W2LGroupNormImpl(float alpha, float beta);
 
   void pretty_print(std::ostream& stream) const override;
 
   torch::Tensor forward(torch::Tensor x);
+
+  torch::Tensor alpha, beta;
 };
 
-TORCH_MODULE(GroupNorm2D);
-
-struct GroupNorm3DImpl : GroupNormBaseImpl {
- public:
-  explicit GroupNorm3DImpl(GroupNormBase&& groupNorm);
-
-  void pretty_print(std::ostream& stream) const override;
-
-  torch::Tensor forward(torch::Tensor x);
-};
-
-TORCH_MODULE(GroupNorm3D);
+TORCH_MODULE(W2LGroupNorm);
 
 struct ResidualTorchImpl : torch::nn::Module {
  public:

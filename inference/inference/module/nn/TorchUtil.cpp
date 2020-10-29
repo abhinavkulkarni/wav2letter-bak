@@ -25,6 +25,14 @@ void StackSequentialImpl::pretty_print(std::ostream& stream) const {
   SequentialImpl::pretty_print(stream);
 }
 
+void StackSequentialImpl::start() {
+  for (auto& module : modules(false))
+    if (auto ptr = module->as<Conv1dUnequalPadding>())
+      ptr->start();
+    else if (auto ptr = module->as<ResidualTorch>())
+      ptr->start();
+}
+
 void StackSequentialImpl::finish() {
   for (auto& module : modules(false))
     if (auto ptr = module->as<Conv1dUnequalPadding>())
@@ -113,6 +121,10 @@ torch::Tensor ResidualTorchImpl::forward(torch::Tensor x) {
   return z;
 }
 
+void ResidualTorchImpl::start() {
+  padding = torch::zeros(0);
+}
+
 Conv1dUnequalPaddingImpl::Conv1dUnequalPaddingImpl(
     int inChannels,
     int outChannels,
@@ -158,6 +170,12 @@ void Conv1dUnequalPaddingImpl::pretty_print(std::ostream& stream) const {
   torch::nn::Conv1dImpl::pretty_print(stream);
   if (leftPadding and rightPadding)
     stream << "\b, padding=(" << leftPadding << ", " << rightPadding << "))";
+}
+
+void Conv1dUnequalPaddingImpl::start() {
+  leftPaddingTensor =
+      torch::zeros({1, options.in_channels() * groups, leftPadding})
+          .toType(torch::kFloat);
 }
 
 void Conv1dUnequalPaddingImpl::finish() {

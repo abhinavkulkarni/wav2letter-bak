@@ -24,6 +24,7 @@ TorchModule::TorchModule() = default;
 
 std::shared_ptr<ModuleProcessingState> TorchModule::start(
     std::shared_ptr<ModuleProcessingState> input) {
+  sequential->start();
   return input->next(true, 1);
 }
 

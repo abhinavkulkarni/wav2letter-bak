@@ -20,6 +20,8 @@ struct StackSequentialImpl : torch::nn::SequentialImpl {
 
   torch::Tensor forward(torch::Tensor x);
 
+  void start();
+
   void finish();
 };
 
@@ -77,6 +79,8 @@ struct ResidualTorchImpl : torch::nn::Module {
 
   torch::Tensor forward(torch::Tensor x);
 
+  void start();
+
  private:
   torch::Tensor padding;
 };
@@ -99,6 +103,8 @@ struct Conv1dUnequalPaddingImpl : torch::nn::Conv1dImpl {
   torch::Tensor forward(torch::Tensor x);
 
   void pretty_print(std::ostream& stream) const override;
+
+  void start();
 
   void finish();
 

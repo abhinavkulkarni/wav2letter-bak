@@ -95,17 +95,17 @@ DEFINE_string(
     "feature_extractor.bin",
     "serialized feature extraction module.");
 DEFINE_string(
-    acoustic_module_file,
-    "acoustic_model.bin",
-    "binary file containing acoustic module parameters.");
-DEFINE_string(
     acoustic_module_definition_file,
     "acoustic_model.json",
     "JSON file containing libtorch acoustic module definition.");
 DEFINE_string(
     acoustic_module_parameter_file,
-    "acoustic_model.pth",
+    "acoustic_model_half.pth",
     "binary file containing libtorch acoustic module parameters.");
+DEFINE_string(
+    acoustic_module_precision,
+    "fp16",
+    "floating point precision for acoustic module [fp16|fp32].");
 DEFINE_string(
     transitions_file,
     "",
@@ -151,40 +151,13 @@ int main(int argc, char* argv[]) {
 
   {
     TimeElapsedReporter acousticLoadingElapsed("acoustic model file loading");
-    rapidjson::Document json;
-    std::ifstream amDefinitionFile(
+    auto [infoIn, infoOut, sequential] = loadTorchModule(
         GetInputFileFullPath(FLAGS_acoustic_module_definition_file),
-        std::ios::in);
-    rapidjson::IStreamWrapper isw(amDefinitionFile);
-    json.ParseStream(isw);
-    //    amDefinitionFile.close();
-    auto sequential = getTorchModule(json);
-    std::shared_ptr<InferenceModuleInfo> infoIn, infoOut;
-
-    torch::load(
-        sequential, GetInputFileFullPath(FLAGS_acoustic_module_parameter_file));
-
-    for (auto& name : {"inInfo", "outInfo"}) {
-      auto obj = json[name].GetObject();
-      std::map<std::string, int> kwargs;
-      if (obj.FindMember("kernelSize") != obj.MemberEnd())
-        kwargs = {{"kernelSize", obj["kernelSize"].GetInt()}};
-
-      auto inShape =
-          static_cast<InferenceModuleInfo::shape>(obj["inShape"].GetInt());
-      auto outShape =
-          static_cast<InferenceModuleInfo::shape>(obj["outShape"].GetInt());
-      auto inChannels = obj["inChannels"].GetInt();
-      auto outChannels = obj["outChannels"].GetInt();
-      auto info = std::make_shared<InferenceModuleInfo>(
-          inShape, inChannels, outShape, outChannels, kwargs);
-      if (strcmp(name, "inInfo") == 0)
-        infoIn = info;
-      else
-        infoOut = info;
-    }
-
-    acousticModule = std::make_shared<TorchModule>(infoIn, infoOut, sequential);
+        GetInputFileFullPath(FLAGS_acoustic_module_parameter_file),
+        FLAGS_acoustic_module_precision);
+    auto device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
+    acousticModule =
+        std::make_shared<TorchModule>(infoIn, infoOut, sequential, 57, device);
   }
 
   // String both modeles togthers to a single DNN.

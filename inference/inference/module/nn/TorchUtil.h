@@ -23,6 +23,8 @@ struct StackSequentialImpl : torch::nn::SequentialImpl {
   void start();
 
   void finish();
+
+  void reset_buffers();
 };
 
 TORCH_MODULE(StackSequential);
@@ -79,7 +81,7 @@ struct ResidualTorchImpl : torch::nn::Module {
 
   torch::Tensor forward(torch::Tensor x);
 
-  void start();
+  void reset_buffers();
 
  private:
   torch::Tensor padding;
@@ -108,6 +110,8 @@ struct Conv1dUnequalPaddingImpl : torch::nn::Conv1dImpl {
 
   void finish();
 
+  void reset_buffers();
+
  private:
   torch::Tensor leftPaddingTensor, rightPaddingTensor;
 };
@@ -125,4 +129,13 @@ rapidjson::Document getJSON(const std::shared_ptr<InferenceModule>& dnnModule);
 rapidjson::Document getJSON(const StackSequential& seqModule);
 
 StackSequential getTorchModule(const rapidjson::Document& json);
+
+std::tuple<
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    StackSequential>
+loadTorchModule(
+    const std::string& acoustic_module_definition_file,
+    const std::string& acoustic_module_parameter_file,
+    const std::string& acoustic_module_precision);
 } // namespace w2l::streaming

@@ -4,7 +4,9 @@
 
 #include "inference/module/nn/TorchUtil.h"
 
+#include <cereal/external/rapidjson/istreamwrapper.h>
 #include <cereal/external/rapidjson/stringbuffer.h>
+#include <torch/csrc/api/include/torch/all.h>
 #include <utility>
 
 namespace F = torch::nn::functional;
@@ -29,14 +31,20 @@ void StackSequentialImpl::start() {
   for (auto& module : modules(false))
     if (auto ptr = module->as<Conv1dUnequalPadding>())
       ptr->start();
-    else if (auto ptr = module->as<ResidualTorch>())
-      ptr->start();
 }
 
 void StackSequentialImpl::finish() {
   for (auto& module : modules(false))
     if (auto ptr = module->as<Conv1dUnequalPadding>())
       ptr->finish();
+}
+
+void StackSequentialImpl::reset_buffers() {
+  for (auto& module : modules(false))
+    if (auto ptr = module->as<Conv1dUnequalPadding>())
+      ptr->reset_buffers();
+    else if (auto ptr = module->as<ResidualTorch>())
+      ptr->reset_buffers();
 }
 
 PermuteImpl::PermuteImpl(std::vector<long>&& vec) {
@@ -86,7 +94,8 @@ torch::Tensor W2LGroupNormImpl::forward(torch::Tensor x) {
 
 ResidualTorchImpl::ResidualTorchImpl(
     std::string name,
-    torch::nn::AnyModule anyModule) {
+    torch::nn::AnyModule anyModule)
+    : padding(register_buffer("padding", torch::empty(0))) {
   if (name == "ReLU")
     anyModule = register_module(name, anyModule.get<torch::nn::ReLU>());
   else if (name == "Sequential")
@@ -103,7 +112,6 @@ ResidualTorchImpl::ResidualTorchImpl(
     anyModule = register_module(name, anyModule.get<W2LGroupNorm>());
   this->name = std::move(name);
   this->anyModule = std::move(anyModule);
-  padding = torch::zeros(0);
 }
 
 void ResidualTorchImpl::pretty_print(std::ostream& stream) const {
@@ -121,8 +129,10 @@ torch::Tensor ResidualTorchImpl::forward(torch::Tensor x) {
   return z;
 }
 
-void ResidualTorchImpl::start() {
-  padding = torch::zeros(0);
+void ResidualTorchImpl::reset_buffers() {
+  padding = torch::empty(
+      0,
+      torch::TensorOptions().device(padding.device()).dtype(padding.dtype()));
 }
 
 Conv1dUnequalPaddingImpl::Conv1dUnequalPaddingImpl(
@@ -141,11 +151,10 @@ Conv1dUnequalPaddingImpl::Conv1dUnequalPaddingImpl(
                                 .groups(1)),
       leftPadding(leftPadding),
       rightPadding(rightPadding),
-      leftPaddingTensor(
-          torch::zeros({1, inChannels, leftPadding}).toType(torch::kFloat)),
+      groups(groups),
+      leftPaddingTensor(register_buffer("leftPaddingTensor", torch::empty(0))),
       rightPaddingTensor(
-          torch::zeros({1, inChannels, 0}).toType(torch::kFloat)),
-      groups(groups) {}
+          register_buffer("rightPaddingTensor", torch::empty(0))) {}
 
 torch::Tensor Conv1dUnequalPaddingImpl::forward(torch::Tensor x) {
   x = torch::cat({leftPaddingTensor, x, rightPaddingTensor}, -1);
@@ -156,7 +165,11 @@ torch::Tensor Conv1dUnequalPaddingImpl::forward(torch::Tensor x) {
   int inChannels = options.in_channels();
   leftPaddingTensor = x.slice(-1, consumedFrames);
 
-  auto y = torch::empty({1, 0, nOutFrames});
+  auto y = torch::empty(
+      0,
+      torch::TensorOptions()
+          .device(leftPaddingTensor.device())
+          .dtype(leftPaddingTensor.dtype()));
   for (int i = 0; i < groups; i++) {
     auto x_ = torch::nn::Conv1dImpl::forward(
         x.slice(1, i * inChannels, (i + 1) * inChannels));
@@ -173,15 +186,32 @@ void Conv1dUnequalPaddingImpl::pretty_print(std::ostream& stream) const {
 }
 
 void Conv1dUnequalPaddingImpl::start() {
-  leftPaddingTensor =
-      torch::zeros({1, options.in_channels() * groups, leftPadding})
-          .toType(torch::kFloat);
+  leftPaddingTensor = torch::zeros(
+      {1, options.in_channels() * groups, leftPadding},
+      torch::TensorOptions()
+          .device(leftPaddingTensor.device())
+          .dtype(leftPaddingTensor.dtype()));
 }
 
 void Conv1dUnequalPaddingImpl::finish() {
-  rightPaddingTensor =
-      torch::zeros({1, options.in_channels() * groups, rightPadding})
-          .toType(torch::kFloat);
+  rightPaddingTensor = torch::zeros(
+      {1, options.in_channels() * groups, rightPadding},
+      torch::TensorOptions()
+          .device(rightPaddingTensor.device())
+          .dtype(rightPaddingTensor.dtype()));
+}
+
+void Conv1dUnequalPaddingImpl::reset_buffers() {
+  leftPaddingTensor = torch::empty(
+      0,
+      torch::TensorOptions()
+          .device(leftPaddingTensor.device())
+          .dtype(leftPaddingTensor.dtype()));
+  rightPaddingTensor = torch::empty(
+      0,
+      torch::TensorOptions()
+          .device(rightPaddingTensor.device())
+          .dtype(rightPaddingTensor.dtype()));
 }
 
 std::tuple<
@@ -404,6 +434,52 @@ rapidjson::Document getJSON(const StackSequential& seqModule) {
     d.AddMember(m.name, m.value.Move(), allocator);
 
   return d;
+}
+
+std::tuple<
+    std::shared_ptr<InferenceModuleInfo>,
+    std::shared_ptr<InferenceModuleInfo>,
+    StackSequential>
+loadTorchModule(
+    const std::string& acoustic_module_definition_file,
+    const std::string& acoustic_module_parameter_file,
+    const std::string& acoustic_module_precision) {
+  rapidjson::Document json;
+  std::ifstream amDefinitionFile(acoustic_module_definition_file, std::ios::in);
+  rapidjson::IStreamWrapper isw(amDefinitionFile);
+  json.ParseStream(isw);
+
+  auto sequential = getTorchModule(json);
+  std::shared_ptr<InferenceModuleInfo> infoIn, infoOut;
+
+  auto dtype =
+      (acoustic_module_precision == "fp16") ? torch::kFloat16 : torch::kFloat;
+  sequential->to(dtype);
+  torch::load(sequential, acoustic_module_parameter_file);
+  if (not torch::cuda::is_available())
+    sequential->to(torch::kFloat);
+
+  for (auto& name : {"inInfo", "outInfo"}) {
+    auto obj = json[name].GetObject();
+    std::map<std::string, int> kwargs;
+    if (obj.FindMember("kernelSize") != obj.MemberEnd())
+      kwargs = {{"kernelSize", obj["kernelSize"].GetInt()}};
+
+    auto inShape =
+        static_cast<InferenceModuleInfo::shape>(obj["inShape"].GetInt());
+    auto outShape =
+        static_cast<InferenceModuleInfo::shape>(obj["outShape"].GetInt());
+    auto inChannels = obj["inChannels"].GetInt();
+    auto outChannels = obj["outChannels"].GetInt();
+    auto info = std::make_shared<InferenceModuleInfo>(
+        inShape, inChannels, outShape, outChannels, kwargs);
+    if (strcmp(name, "inInfo") == 0)
+      infoIn = info;
+    else
+      infoOut = info;
+  }
+
+  return {infoIn, infoOut, sequential};
 }
 
 } // namespace w2l::streaming

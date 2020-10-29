@@ -115,6 +115,7 @@ int main(int argc, char* argv[]) {
     amJsonFile << str;
     amJsonFile.close();
 
+    sequential->reset_buffers();
     torch::save(
         sequential,
         GetFullPath(

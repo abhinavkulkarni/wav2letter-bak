@@ -124,48 +124,14 @@ void compare() {
 
   std::shared_ptr<TorchModule> torchAcousticModule;
   {
-    TimeElapsedReporter acousticLoadingElapsed(
-        "torch acoustic model file loading");
-    rapidjson::Document json;
-    std::ifstream amDefinitionFile(
-        "/data/podcaster/model/wav2letter/acoustic_model.json", std::ios::in);
-    rapidjson::IStreamWrapper isw(amDefinitionFile);
-    json.ParseStream(isw);
-    auto sequential = getTorchModule(json);
-    std::shared_ptr<InferenceModuleInfo> infoIn, infoOut;
-
-    torch::load(
-        sequential, "/data/podcaster/model/wav2letter/acoustic_model.pth");
-
-    for (auto& name : {"inInfo", "outInfo"}) {
-      auto obj = json[name].GetObject();
-      std::map<std::string, int> kwargs;
-      if (obj.FindMember("kernelSize") != obj.MemberEnd())
-        kwargs = {{"kernelSize", obj["kernelSize"].GetInt()}};
-
-      auto inShape =
-          static_cast<InferenceModuleInfo::shape>(obj["inShape"].GetInt());
-      auto outShape =
-          static_cast<InferenceModuleInfo::shape>(obj["outShape"].GetInt());
-      auto inChannels = obj["inChannels"].GetInt();
-      auto outChannels = obj["outChannels"].GetInt();
-      auto info = std::make_shared<InferenceModuleInfo>(
-          inShape, inChannels, outShape, outChannels, kwargs);
-      if (strcmp(name, "inInfo") == 0)
-        infoIn = info;
-      else
-        infoOut = info;
-    }
+    TimeElapsedReporter acousticLoadingElapsed("acoustic model file loading");
+    auto [infoIn, infoOut, sequential] = loadTorchModule(
+        "/data/podcaster/model/wav2letter/acoustic_model.json",
+        "/data/podcaster/model/wav2letter/acoustic_model_half.pth",
+        "fp16");
+    auto device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
     torchAcousticModule =
-        std::make_shared<TorchModule>(infoIn, infoOut, sequential, 57);
-
-    auto x = torch::arange(57 * 80).toType(torch::kFloat);
-    x = (x - x.mean()) / x.std();
-    x = sequential->forward(x).contiguous();
-    x = x.reshape({-1, 1});
-    std::ofstream ofstream("/tmp/output-cpp.txt", std::ios::out);
-    ofstream << x << std::endl;
-    ofstream.close();
+        std::make_shared<TorchModule>(infoIn, infoOut, sequential, 57, device);
   }
   auto dnnModuleLibTorch = std::make_shared<Sequential>();
   dnnModuleLibTorch->add(featureModule2);

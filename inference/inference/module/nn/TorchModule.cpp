@@ -14,13 +14,21 @@ TorchModule::TorchModule(
     std::shared_ptr<InferenceModuleInfo> infoIn,
     std::shared_ptr<InferenceModuleInfo> infoOut,
     StackSequential sequential,
-    int minFrames)
+    int minFrames,
+    torch::Device device)
     : infoIn(std::move(infoIn)),
       infoOut(std::move(infoOut)),
       sequential(std::move(sequential)),
-      minFrames(minFrames) {}
+      minFrames(minFrames),
+      device(device) {
+  if (this->sequential->parameters().empty())
+    dtype = torch::kFloat;
+  else
+    dtype = this->sequential->parameters().at(0).scalar_type();
 
-TorchModule::TorchModule() = default;
+  this->sequential->to(device);
+  this->sequential->eval();
+}
 
 std::shared_ptr<ModuleProcessingState> TorchModule::start(
     std::shared_ptr<ModuleProcessingState> input) {
@@ -48,7 +56,9 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
 
   auto x = torch::from_blob(
       input->buffer(0)->data<float>(), nInFrames * infoIn->inChannels);
+  x = x.to(dtype).to(device);
   x = sequential->forward(x).contiguous();
+  x = x.to(torch::kCPU).to(torch::kFloat);
 
   auto outSize = x.numel();
   outputBuf->ensure<float>(outSize);

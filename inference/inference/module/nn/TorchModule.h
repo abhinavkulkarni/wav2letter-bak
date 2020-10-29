@@ -21,7 +21,8 @@ class TorchModule : public InferenceModule {
       std::shared_ptr<InferenceModuleInfo> infoIn,
       std::shared_ptr<InferenceModuleInfo> infoOut,
       StackSequential sequential,
-      int minFrames = 1);
+      int minFrames = 1,
+      torch::Device device = torch::kCPU);
 
   ~TorchModule() override = default;
 
@@ -47,18 +48,11 @@ class TorchModule : public InferenceModule {
       rapidjson::MemoryPoolAllocator<>& allocator) const override;
 
  private:
+  torch::Device device;
+  c10::ScalarType dtype;
   int minFrames;
   StackSequential sequential;
   std::shared_ptr<InferenceModuleInfo> infoIn, infoOut;
-  friend class cereal::access;
-
-  TorchModule(); // Used by Cereal for serialization.
-
-  template <class Archive>
-  void serialize(Archive& ar) {
-    ar(cereal::base_class<InferenceModule>(this));
-  }
 };
 } // namespace w2l::streaming
 
-CEREAL_REGISTER_TYPE(w2l::streaming::TorchModule);

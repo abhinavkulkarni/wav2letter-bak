@@ -37,3 +37,9 @@ with open("/tmp/output-python.txt", 'w') as f:
     for item in x:
         f.write(f"{item: 2.4e}")
         f.write("\n")
+
+# Run sample data
+x = torch.arange(57 * 80).float()
+x = (x - x.mean()) / x.std()
+scripted_module = torch.jit.script(model.half())
+scripted_module.save('/tmp/acoustic_model_half_scripted.pth')

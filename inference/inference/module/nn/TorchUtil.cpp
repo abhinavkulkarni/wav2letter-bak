@@ -130,9 +130,7 @@ torch::Tensor ResidualTorchImpl::forward(torch::Tensor x) {
 }
 
 void ResidualTorchImpl::reset_buffers() {
-  padding = torch::empty(
-      0,
-      torch::TensorOptions().device(padding.device()).dtype(padding.dtype()));
+  padding = torch::empty(0, padding.options());
 }
 
 Conv1dUnequalPaddingImpl::Conv1dUnequalPaddingImpl(
@@ -165,11 +163,7 @@ torch::Tensor Conv1dUnequalPaddingImpl::forward(torch::Tensor x) {
   int inChannels = options.in_channels();
   leftPaddingTensor = x.slice(-1, consumedFrames);
 
-  auto y = torch::empty(
-      0,
-      torch::TensorOptions()
-          .device(leftPaddingTensor.device())
-          .dtype(leftPaddingTensor.dtype()));
+  auto y = torch::empty(0, leftPaddingTensor.options());
   for (int i = 0; i < groups; i++) {
     auto x_ = torch::nn::Conv1dImpl::forward(
         x.slice(1, i * inChannels, (i + 1) * inChannels));
@@ -188,30 +182,18 @@ void Conv1dUnequalPaddingImpl::pretty_print(std::ostream& stream) const {
 void Conv1dUnequalPaddingImpl::start() {
   leftPaddingTensor = torch::zeros(
       {1, options.in_channels() * groups, leftPadding},
-      torch::TensorOptions()
-          .device(leftPaddingTensor.device())
-          .dtype(leftPaddingTensor.dtype()));
+      leftPaddingTensor.options());
 }
 
 void Conv1dUnequalPaddingImpl::finish() {
   rightPaddingTensor = torch::zeros(
       {1, options.in_channels() * groups, rightPadding},
-      torch::TensorOptions()
-          .device(rightPaddingTensor.device())
-          .dtype(rightPaddingTensor.dtype()));
+      rightPaddingTensor.options());
 }
 
 void Conv1dUnequalPaddingImpl::reset_buffers() {
-  leftPaddingTensor = torch::empty(
-      0,
-      torch::TensorOptions()
-          .device(leftPaddingTensor.device())
-          .dtype(leftPaddingTensor.dtype()));
-  rightPaddingTensor = torch::empty(
-      0,
-      torch::TensorOptions()
-          .device(rightPaddingTensor.device())
-          .dtype(rightPaddingTensor.dtype()));
+  leftPaddingTensor = torch::empty(0, leftPaddingTensor.options());
+  rightPaddingTensor = torch::empty(0, rightPaddingTensor.options());
 }
 
 std::tuple<

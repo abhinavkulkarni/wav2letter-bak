@@ -157,7 +157,7 @@ int main(int argc, char* argv[]) {
         FLAGS_acoustic_module_precision);
     auto device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
     acousticModule =
-        std::make_shared<TorchModule>(infoIn, infoOut, sequential, 57, device);
+        std::make_shared<TorchModule>(infoIn, infoOut, sequential, device);
   }
 
   // String both modeles togthers to a single DNN.

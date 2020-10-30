@@ -21,7 +21,6 @@ class TorchModule : public InferenceModule {
       std::shared_ptr<InferenceModuleInfo> infoIn,
       std::shared_ptr<InferenceModuleInfo> infoOut,
       StackSequential sequential,
-      int minFrames = 1,
       torch::Device device = torch::kCPU);
 
   ~TorchModule() override = default;
@@ -50,7 +49,6 @@ class TorchModule : public InferenceModule {
  private:
   torch::Device device;
   c10::ScalarType dtype;
-  int minFrames;
   StackSequential sequential;
   std::shared_ptr<InferenceModuleInfo> infoIn, infoOut;
 };

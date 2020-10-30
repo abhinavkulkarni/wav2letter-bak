@@ -47,9 +47,11 @@ class W2LGroupNorm(nn.Module):
         return f"GroupNorm(alpha={self.alpha}, beta={self.beta})"
 
 
-class Conv1dUnequalPadding(nn.Conv1d):
+class Conv1dUnequalPadding(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, left_padding, right_padding, groups):
-        super().__init__(in_channels // groups, out_channels // groups, kernel_size, stride, padding=0, groups=1)
+        super().__init__()
+        self.conv1d = nn.Conv1d(in_channels // groups, out_channels // groups, kernel_size, stride=stride, padding=0,
+                                groups=1)
         self.left_padding = left_padding
         self.right_padding = right_padding
         self.left_padding_tensor = torch.zeros((1, in_channels, left_padding)).float()
@@ -58,23 +60,24 @@ class Conv1dUnequalPadding(nn.Conv1d):
 
     def forward(self, x):
         x = torch.cat((self.left_padding_tensor, x, self.right_padding_tensor), -1)
-        kernel_size = self.kernel_size[0]
-        stride = self.stride[0]
+        kernel_size = self.conv1d.kernel_size[0]
+        stride = self.conv1d.stride[0]
         num_out_frames = (x.shape[-1] - kernel_size) // stride + 1
         num_consumed_frames = num_out_frames * stride
         self.left_padding_tensor = x[..., num_consumed_frames:]
         y = torch.empty((1, 0, num_out_frames))
         for i in range(self.num_groups):
-            _x = x[:, (i * self.in_channels):((i + 1) * self.in_channels), :]
-            _x = super().forward(_x)
+            _x = x[:, (i * self.conv1d.in_channels):((i + 1) * self.conv1d.in_channels), :]
+            _x = self.conv1d.forward(_x)
             y = torch.cat((y, _x), 1)
         return y
 
     def finish(self):
-        self.right_padding_tensor = torch.zeros((1, self.in_channels * self.num_groups, self.right_padding)).float()
+        self.right_padding_tensor = torch.zeros(
+            (1, self.conv1d.in_channels * self.num_groups, self.right_padding)).float()
 
     def __repr__(self):
-        s = super().__repr__()
+        s = self.conv1d.__repr__()
         s = f"{s}\b, padding={self.left_padding, self.right_padding})"
         return s
 

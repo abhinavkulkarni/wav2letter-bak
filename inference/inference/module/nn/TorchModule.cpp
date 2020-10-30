@@ -14,12 +14,10 @@ TorchModule::TorchModule(
     std::shared_ptr<InferenceModuleInfo> infoIn,
     std::shared_ptr<InferenceModuleInfo> infoOut,
     StackSequential sequential,
-    int minFrames,
     torch::Device device)
     : infoIn(std::move(infoIn)),
       infoOut(std::move(infoOut)),
       sequential(std::move(sequential)),
-      minFrames(minFrames),
       device(device) {
   if (this->sequential->parameters().empty())
     dtype = torch::kFloat;
@@ -46,9 +44,6 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
   assert(inputBuf);
 
   int nInFrames = inputBuf->size<float>() / infoIn->inChannels;
-  //  if (nInFrames < minFrames) {
-  //    return output;
-  //  }
 
   assert(output->buffers().size() == 1);
   std::shared_ptr<IOBuffer> outputBuf = output->buffer(0);
@@ -57,16 +52,18 @@ std::shared_ptr<ModuleProcessingState> TorchModule::run(
   auto x = torch::from_blob(
       input->buffer(0)->data<float>(), nInFrames * infoIn->inChannels);
   x = x.to(dtype).to(device);
-  x = sequential->forward(x).contiguous();
-  x = x.to(torch::kCPU).to(torch::kFloat);
-
-  auto outSize = x.numel();
-  outputBuf->ensure<float>(outSize);
-  auto* outPtr = outputBuf->tail<float>();
-  std::copy_n(x.data_ptr<float>(), outSize, outPtr);
-
-  outputBuf->move<float>(outSize);
-  auto consumedSize = inputBuf->size<float>();
+  try {
+    x = sequential->forward(x).contiguous();
+    x = x.to(torch::kCPU).to(torch::kFloat);
+    auto outSize = x.numel();
+    outputBuf->ensure<float>(outSize);
+    auto* outPtr = outputBuf->tail<float>();
+    std::copy_n(x.data_ptr<float>(), outSize, outPtr);
+    outputBuf->move<float>(outSize);
+  } catch (c10::Error& e) {
+    ;
+  }
+  auto consumedSize = nInFrames * infoIn->inChannels;
   inputBuf->consume<float>(consumedSize);
   return output;
 }

@@ -129,9 +129,18 @@ void compare() {
         "/data/podcaster/model/wav2letter/acoustic_model.json",
         "/data/podcaster/model/wav2letter/acoustic_model_half.pth",
         "fp16");
+
+    auto x = torch::arange(57 * 80).to(torch::kFloat);
+    x = (x - x.mean()) / x.std();
+    sequential->start();
+    x = sequential->forward(x).contiguous();
+    x = x.reshape({-1, 1});
+    std::ofstream ofstream("/tmp/output-cpp.txt");
+    ofstream << x << std::endl;
+
     auto device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
     torchAcousticModule =
-        std::make_shared<TorchModule>(infoIn, infoOut, sequential, 57, device);
+        std::make_shared<TorchModule>(infoIn, infoOut, sequential, device);
   }
   auto dnnModuleLibTorch = std::make_shared<Sequential>();
   dnnModuleLibTorch->add(featureModule2);
@@ -149,4 +158,5 @@ void compare() {
 
 int main(int argc, char* argv[]) {
   compare();
+
 }
